@@ -1,51 +1,21 @@
 package mezz.jei.plugins.vanilla;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 
-import com.google.common.base.Preconditions;
-import mezz.jei.Internal;
-import mezz.jei.api.IGuiHelper;
-import mezz.jei.api.IJeiHelpers;
-import mezz.jei.api.IModPlugin;
-import mezz.jei.api.IModRegistry;
-import mezz.jei.api.ISubtypeRegistry;
-import mezz.jei.api.JEIPlugin;
-import mezz.jei.api.ingredients.IIngredientBlacklist;
-import mezz.jei.api.ingredients.IIngredientRegistry;
-import mezz.jei.api.ingredients.IModIngredientRegistration;
-import mezz.jei.api.recipe.IRecipeCategoryRegistration;
-import mezz.jei.api.recipe.IVanillaRecipeFactory;
-import mezz.jei.api.recipe.VanillaRecipeCategoryUid;
-import mezz.jei.api.recipe.transfer.IRecipeTransferRegistry;
-import mezz.jei.plugins.vanilla.anvil.AnvilRecipeCategory;
-import mezz.jei.plugins.vanilla.anvil.AnvilRecipeMaker;
-import mezz.jei.plugins.vanilla.brewing.BrewingRecipeCategory;
-import mezz.jei.plugins.vanilla.brewing.BrewingRecipeMaker;
-import mezz.jei.plugins.vanilla.brewing.PotionSubtypeInterpreter;
-import mezz.jei.plugins.vanilla.crafting.CraftingRecipeCategory;
-import mezz.jei.plugins.vanilla.crafting.CraftingRecipeChecker;
-import mezz.jei.plugins.vanilla.crafting.ShapedOreRecipeWrapper;
-import mezz.jei.plugins.vanilla.crafting.ShapedRecipesWrapper;
-import mezz.jei.plugins.vanilla.crafting.ShapelessRecipeWrapper;
-import mezz.jei.plugins.vanilla.crafting.TippedArrowRecipeMaker;
-import mezz.jei.plugins.vanilla.furnace.FuelRecipeMaker;
-import mezz.jei.plugins.vanilla.furnace.FurnaceFuelCategory;
-import mezz.jei.plugins.vanilla.furnace.FurnaceSmeltingCategory;
-import mezz.jei.plugins.vanilla.furnace.SmeltingRecipeMaker;
-import mezz.jei.plugins.vanilla.ingredients.FluidStackHelper;
-import mezz.jei.plugins.vanilla.ingredients.FluidStackListFactory;
-import mezz.jei.plugins.vanilla.ingredients.FluidStackRenderer;
-import mezz.jei.plugins.vanilla.ingredients.ItemStackHelper;
-import mezz.jei.plugins.vanilla.ingredients.ItemStackListFactory;
-import mezz.jei.plugins.vanilla.ingredients.ItemStackRenderer;
-import mezz.jei.startup.StackHelper;
-import mezz.jei.transfer.PlayerRecipeTransferHandler;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.fluids.FluidStack;
+import net.minecraftforge.oredict.OreDictionary;
+import net.minecraftforge.oredict.ShapedOreRecipe;
+import net.minecraftforge.oredict.ShapelessOreRecipe;
 import net.minecraft.client.gui.GuiRepair;
 import net.minecraft.client.gui.inventory.GuiBrewingStand;
 import net.minecraft.client.gui.inventory.GuiCrafting;
 import net.minecraft.client.gui.inventory.GuiFurnace;
 import net.minecraft.client.gui.inventory.GuiInventory;
 import net.minecraft.enchantment.Enchantment;
+import net.minecraft.enchantment.EnchantmentData;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import net.minecraft.inventory.ContainerBrewingStand;
@@ -63,12 +33,51 @@ import net.minecraft.nbt.NBTBase;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.oredict.ShapedOreRecipe;
-import net.minecraftforge.oredict.ShapelessOreRecipe;
 
-import java.util.ArrayList;
-import java.util.List;
+import com.google.common.base.Preconditions;
+import mezz.jei.Internal;
+import mezz.jei.api.IJeiHelpers;
+import mezz.jei.api.IModPlugin;
+import mezz.jei.api.IModRegistry;
+import mezz.jei.api.ISubtypeRegistry;
+import mezz.jei.api.JEIPlugin;
+import mezz.jei.api.ingredients.IIngredientBlacklist;
+import mezz.jei.api.ingredients.IIngredientRegistry;
+import mezz.jei.api.ingredients.IModIngredientRegistration;
+import mezz.jei.api.ingredients.VanillaTypes;
+import mezz.jei.api.recipe.IRecipeCategoryRegistration;
+import mezz.jei.api.recipe.IVanillaRecipeFactory;
+import mezz.jei.api.recipe.VanillaRecipeCategoryUid;
+import mezz.jei.api.recipe.transfer.IRecipeTransferRegistry;
+import mezz.jei.gui.GuiHelper;
+import mezz.jei.plugins.vanilla.anvil.AnvilRecipeCategory;
+import mezz.jei.plugins.vanilla.anvil.AnvilRecipeMaker;
+import mezz.jei.plugins.vanilla.brewing.BrewingRecipeCategory;
+import mezz.jei.plugins.vanilla.brewing.BrewingRecipeMaker;
+import mezz.jei.plugins.vanilla.brewing.PotionSubtypeInterpreter;
+import mezz.jei.plugins.vanilla.crafting.CraftingRecipeCategory;
+import mezz.jei.plugins.vanilla.crafting.CraftingRecipeChecker;
+import mezz.jei.plugins.vanilla.crafting.ShapedOreRecipeWrapper;
+import mezz.jei.plugins.vanilla.crafting.ShapedRecipesWrapper;
+import mezz.jei.plugins.vanilla.crafting.ShapelessRecipeWrapper;
+import mezz.jei.plugins.vanilla.crafting.TippedArrowRecipeMaker;
+import mezz.jei.plugins.vanilla.furnace.FuelRecipeMaker;
+import mezz.jei.plugins.vanilla.furnace.FurnaceFuelCategory;
+import mezz.jei.plugins.vanilla.furnace.FurnaceSmeltingCategory;
+import mezz.jei.plugins.vanilla.furnace.SmeltingRecipeMaker;
+import mezz.jei.plugins.vanilla.ingredients.enchant.EnchantDataHelper;
+import mezz.jei.plugins.vanilla.ingredients.enchant.EnchantDataListFactory;
+import mezz.jei.plugins.vanilla.ingredients.enchant.EnchantDataRenderer;
+import mezz.jei.plugins.vanilla.ingredients.enchant.EnchantedBookCache;
+import mezz.jei.plugins.vanilla.ingredients.fluid.FluidStackHelper;
+import mezz.jei.plugins.vanilla.ingredients.fluid.FluidStackListFactory;
+import mezz.jei.plugins.vanilla.ingredients.fluid.FluidStackRenderer;
+import mezz.jei.plugins.vanilla.ingredients.item.ItemStackHelper;
+import mezz.jei.plugins.vanilla.ingredients.item.ItemStackListFactory;
+import mezz.jei.plugins.vanilla.ingredients.item.ItemStackRenderer;
+import mezz.jei.runtime.JeiHelpers;
+import mezz.jei.startup.StackHelper;
+import mezz.jei.transfer.PlayerRecipeTransferHandler;
 
 @JEIPlugin
 public class VanillaPlugin implements IModPlugin {
@@ -99,8 +108,7 @@ public class VanillaPlugin implements IModPlugin {
 					NBTTagCompound nbttagcompound = (NBTTagCompound) nbt;
 					int j = nbttagcompound.getShort("id");
 					Enchantment enchantment = Enchantment.getEnchantmentByID(j);
-					if (enchantment != null)
-					{
+					if (enchantment != null) {
 						String enchantmentUid = enchantment.getName() + ".lvl" + nbttagcompound.getShort("lvl");
 						enchantmentNames.add(enchantmentUid);
 					}
@@ -117,20 +125,34 @@ public class VanillaPlugin implements IModPlugin {
 		StackHelper stackHelper = Internal.getStackHelper();
 		ItemStackListFactory itemStackListFactory = new ItemStackListFactory(this.subtypeRegistry);
 
-		ingredientRegistration.register(ItemStack.class, itemStackListFactory.create(stackHelper), new ItemStackHelper(stackHelper), new ItemStackRenderer());
-		ingredientRegistration.register(FluidStack.class, FluidStackListFactory.create(), new FluidStackHelper(), new FluidStackRenderer());
+		List<ItemStack> itemStacks = itemStackListFactory.create(stackHelper);
+		ItemStackHelper itemStackHelper = new ItemStackHelper(stackHelper);
+		ItemStackRenderer itemStackRenderer = new ItemStackRenderer();
+		ingredientRegistration.register(VanillaTypes.ITEM, itemStacks, itemStackHelper, itemStackRenderer);
+
+		List<FluidStack> fluidStacks = FluidStackListFactory.create();
+		FluidStackHelper fluidStackHelper = new FluidStackHelper();
+		FluidStackRenderer fluidStackRenderer = new FluidStackRenderer();
+		ingredientRegistration.register(VanillaTypes.FLUID, fluidStacks, fluidStackHelper, fluidStackRenderer);
+
+		List<EnchantmentData> enchantments = EnchantDataListFactory.create();
+		EnchantedBookCache enchantedBookCache = new EnchantedBookCache();
+		MinecraftForge.EVENT_BUS.register(enchantedBookCache);
+		EnchantDataHelper enchantmentHelper = new EnchantDataHelper(enchantedBookCache, itemStackHelper);
+		EnchantDataRenderer enchantmentRenderer = new EnchantDataRenderer(itemStackRenderer, enchantedBookCache);
+		ingredientRegistration.register(VanillaTypes.ENCHANT, enchantments, enchantmentHelper, enchantmentRenderer);
 	}
 
 	@Override
 	public void registerCategories(IRecipeCategoryRegistration registry) {
-		final IJeiHelpers jeiHelpers = registry.getJeiHelpers();
-		final IGuiHelper guiHelper = jeiHelpers.getGuiHelper();
+		JeiHelpers jeiHelpers = Internal.getHelpers();
+		GuiHelper guiHelper = jeiHelpers.getGuiHelper();
 		registry.addRecipeCategories(
-				new CraftingRecipeCategory(guiHelper),
-				new FurnaceFuelCategory(guiHelper),
-				new FurnaceSmeltingCategory(guiHelper),
-				new BrewingRecipeCategory(guiHelper),
-				new AnvilRecipeCategory(guiHelper)
+			new CraftingRecipeCategory(guiHelper),
+			new FurnaceFuelCategory(guiHelper),
+			new FurnaceSmeltingCategory(guiHelper),
+			new BrewingRecipeCategory(guiHelper),
+			new AnvilRecipeCategory(guiHelper)
 		);
 	}
 
@@ -175,5 +197,12 @@ public class VanillaPlugin implements IModPlugin {
 		IIngredientBlacklist ingredientBlacklist = registry.getJeiHelpers().getIngredientBlacklist();
 		// Game freezes when loading player skulls, see https://bugs.mojang.com/browse/MC-65587
 		ingredientBlacklist.addIngredientToBlacklist(new ItemStack(Items.SKULL, 1, 3));
+		// hide enchanted books, we display them as special ingredients because vanilla does not properly store the enchantment data by its registry name
+		ingredientBlacklist.addIngredientToBlacklist(new ItemStack(Items.ENCHANTED_BOOK, 1, OreDictionary.WILDCARD_VALUE));
+
+		registry.addAdvancedGuiHandlers(new InventoryEffectRendererGuiHandler());
+		registry.addAdvancedGuiHandlers(new RecipeBookGuiHandler<>(GuiInventory.class));
+		registry.addAdvancedGuiHandlers(new RecipeBookGuiHandler<>(GuiCrafting.class));
 	}
+
 }

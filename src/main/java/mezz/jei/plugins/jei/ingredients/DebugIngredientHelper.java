@@ -3,22 +3,17 @@ package mezz.jei.plugins.jei.ingredients;
 import javax.annotation.Nullable;
 import java.awt.Color;
 import java.util.Collections;
-import java.util.List;
 
-import mezz.jei.api.ingredients.IIngredientHelper;
-import mezz.jei.config.Constants;
-import mezz.jei.util.CommandUtilServer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.TextFormatting;
 
-public class DebugIngredientHelper implements IIngredientHelper<DebugIngredient> {
-	@Override
-	public List<DebugIngredient> expandSubtypes(List<DebugIngredient> ingredients) {
-		return ingredients;
-	}
+import mezz.jei.api.ingredients.IIngredientHelper;
+import mezz.jei.config.Constants;
+import mezz.jei.util.CommandUtilServer;
 
+public class DebugIngredientHelper implements IIngredientHelper<DebugIngredient> {
 	@Nullable
 	@Override
 	public DebugIngredient getMatch(Iterable<DebugIngredient> ingredients, DebugIngredient ingredientToMatch) {
@@ -61,7 +56,7 @@ public class DebugIngredientHelper implements IIngredientHelper<DebugIngredient>
 	}
 
 	@Override
-	public ItemStack cheatIngredient(DebugIngredient ingredient, boolean fullStack) {
+	public ItemStack getCheatItemStack(DebugIngredient ingredient) {
 		EntityPlayerSP player = Minecraft.getMinecraft().player;
 		if (player != null) {
 			CommandUtilServer.writeChatMessage(player, "Debug ingredients cannot be cheated", TextFormatting.RED);

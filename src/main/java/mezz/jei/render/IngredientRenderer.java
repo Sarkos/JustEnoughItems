@@ -1,5 +1,21 @@
 package mezz.jei.render;
 
+import java.awt.Color;
+import java.awt.Rectangle;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+
+import net.minecraftforge.fml.client.config.GuiUtils;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.inventory.GuiContainer;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.util.ITooltipFlag;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.text.TextFormatting;
+
 import com.google.common.base.Joiner;
 import mezz.jei.Internal;
 import mezz.jei.api.ingredients.IIngredientHelper;
@@ -10,26 +26,9 @@ import mezz.jei.config.Constants;
 import mezz.jei.gui.TooltipRenderer;
 import mezz.jei.gui.ingredients.IIngredientListElement;
 import mezz.jei.startup.ForgeModIdHelper;
+import mezz.jei.util.ErrorUtil;
 import mezz.jei.util.Log;
 import mezz.jei.util.Translator;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.FontRenderer;
-import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.gui.inventory.GuiContainer;
-import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.util.ITooltipFlag;
-import net.minecraft.crash.CrashReport;
-import net.minecraft.crash.CrashReportCategory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.ReportedException;
-import net.minecraft.util.text.TextFormatting;
-import net.minecraftforge.fml.client.config.GuiUtils;
-
-import java.awt.Color;
-import java.awt.Rectangle;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 
 public class IngredientRenderer<T> {
 	private static final int BLACKLIST_COLOR = Color.red.getRGB();
@@ -60,7 +59,7 @@ public class IngredientRenderer<T> {
 	}
 
 	public void renderSlow() {
-		if (Config.isHideModeEnabled()) {
+		if (Config.isEditModeEnabled()) {
 			renderEditMode(element, area, padding);
 		}
 
@@ -69,7 +68,7 @@ public class IngredientRenderer<T> {
 			T ingredient = element.getIngredient();
 			ingredientRenderer.render(Minecraft.getMinecraft(), area.x + padding, area.y + padding, ingredient);
 		} catch (RuntimeException | LinkageError e) {
-			throw createRenderIngredientException(e, element);
+			throw ErrorUtil.createRenderIngredientException(e, element.getIngredient());
 		}
 	}
 
@@ -91,12 +90,9 @@ public class IngredientRenderer<T> {
 		List<String> tooltip = getTooltip(minecraft, element);
 		FontRenderer fontRenderer = ingredientRenderer.getFontRenderer(minecraft, ingredient);
 
-		if (ingredient instanceof ItemStack) {
-			ItemStack itemStack = (ItemStack) ingredient;
-			TooltipRenderer.drawHoveringText(itemStack, minecraft, tooltip, mouseX, mouseY, fontRenderer);
-		} else {
-			TooltipRenderer.drawHoveringText(minecraft, tooltip, mouseX, mouseY, fontRenderer);
-		}
+		IIngredientHelper<T> ingredientHelper = element.getIngredientHelper();
+		ItemStack itemStack = ingredientHelper.getCheatItemStack(ingredient);
+		TooltipRenderer.drawHoveringText(itemStack, minecraft, tooltip, mouseX, mouseY, fontRenderer);
 	}
 
 	protected static <V> void renderEditMode(IIngredientListElement<V> element, Rectangle area, int padding) {
@@ -127,7 +123,7 @@ public class IngredientRenderer<T> {
 			addColorSearchInfoToTooltip(minecraft, element, tooltip, maxWidth);
 		}
 
-		if (Config.isHideModeEnabled()) {
+		if (Config.isEditModeEnabled()) {
 			addEditModeInfoToTooltip(minecraft, tooltip, maxWidth);
 		}
 
@@ -176,13 +172,4 @@ public class IngredientRenderer<T> {
 		tooltip.addAll(minecraft.fontRenderer.listFormattedStringToWidth(hideWildMessage, maxWidth));
 	}
 
-	protected static <T> ReportedException createRenderIngredientException(Throwable throwable, final IIngredientListElement<T> element) {
-		final T ingredient = element.getIngredient();
-		final IIngredientHelper<T> ingredientHelper = Internal.getIngredientRegistry().getIngredientHelper(ingredient);
-		CrashReport crashreport = CrashReport.makeCrashReport(throwable, "Rendering ingredient");
-		CrashReportCategory crashreportcategory = crashreport.makeCategory("Ingredient being rendered");
-		crashreportcategory.addDetail("Ingredient Mod", () -> ForgeModIdHelper.getInstance().getModNameForIngredient(ingredient, ingredientHelper));
-		crashreportcategory.addDetail("Ingredient Info", () -> ingredientHelper.getErrorInfo(ingredient));
-		throw new ReportedException(crashreport);
-	}
 }

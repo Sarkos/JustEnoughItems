@@ -14,11 +14,7 @@ import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import mezz.jei.api.ISubtypeRegistry;
-import mezz.jei.api.gui.IGuiIngredient;
-import mezz.jei.api.recipe.IStackHelper;
-import mezz.jei.util.ErrorUtil;
-import mezz.jei.util.Log;
+import net.minecraftforge.oredict.OreDictionary;
 import net.minecraft.creativetab.CreativeTabs;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -26,7 +22,12 @@ import net.minecraft.item.crafting.Ingredient;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.util.NonNullList;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.oredict.OreDictionary;
+
+import mezz.jei.api.ISubtypeRegistry;
+import mezz.jei.api.gui.IGuiIngredient;
+import mezz.jei.api.recipe.IStackHelper;
+import mezz.jei.util.ErrorUtil;
+import mezz.jei.util.Log;
 
 public class StackHelper implements IStackHelper {
 	private final ISubtypeRegistry subtypeRegistry;
@@ -49,7 +50,7 @@ public class StackHelper implements IStackHelper {
 
 	public void disableUidCache() {
 		for (UidMode mode : UidMode.values()) {
-			uidCache.get(mode).clear();
+			uidCache.put(mode, new IdentityHashMap<>());
 		}
 		uidCacheEnabled = false;
 	}
@@ -204,59 +205,84 @@ public class StackHelper implements IStackHelper {
 		return keyLhs.equals(keyRhs);
 	}
 
-	@Override
-	public List<ItemStack> getSubtypes(@Nullable ItemStack itemStack) {
-		if (itemStack == null) {
+	public List<ItemStack> getMatchingStacks(Ingredient ingredient) {
+		if (ingredient == Ingredient.EMPTY) {
 			return Collections.emptyList();
 		}
+		ItemStack[] matchingStacks = ingredient.getMatchingStacks();
+		//noinspection ConstantConditions
+		if (matchingStacks == null) {
+			return Collections.emptyList();
+		}
+		if (matchingStacks.length > 0) {
+			return Arrays.asList(matchingStacks);
+		}
+		return getAllSubtypes(Arrays.asList(ingredient.matchingStacks));
+	}
 
-		if (itemStack.isEmpty()) {
+	@Override
+	public List<ItemStack> getSubtypes(@Nullable ItemStack itemStack) {
+		if (itemStack == null || itemStack.isEmpty()) {
 			return Collections.emptyList();
 		}
 
 		if (itemStack.getItemDamage() != OreDictionary.WILDCARD_VALUE) {
-			List<ItemStack> subtypes = new ArrayList<>();
-			subtypes.add(itemStack);
-			return subtypes;
+			return Collections.singletonList(itemStack);
 		}
 
-		return getSubtypes(itemStack.getItem(), itemStack.getCount());
+		NonNullList<ItemStack> subtypes = NonNullList.create();
+		addSubtypesToList(subtypes, itemStack);
+		return subtypes;
 	}
 
-	public NonNullList<ItemStack> getSubtypes(final Item item, final int stackSize) {
-		NonNullList<ItemStack> itemStacks = NonNullList.create();
-
+	private void addSubtypesToList(final List<ItemStack> subtypeList, ItemStack itemStack) {
+		final Item item = itemStack.getItem();
+		final int stackSize = itemStack.getCount();
 		for (CreativeTabs itemTab : item.getCreativeTabs()) {
 			if (itemTab == null) {
-				itemStacks.add(new ItemStack(item, stackSize));
+				ItemStack copy = itemStack.copy();
+				copy.setItemDamage(0);
+				subtypeList.add(copy);
 			} else {
-				NonNullList<ItemStack> subItems = NonNullList.create();
-				try {
-					item.getSubItems(itemTab, subItems);
-				} catch (RuntimeException | LinkageError e) {
-					Log.get().warn("Caught a crash while getting sub-items of {}", item, e);
-				}
+				addSubtypesFromCreativeTabToList(subtypeList, item, stackSize, itemTab);
+			}
+		}
+	}
 
-				for (ItemStack subItem : subItems) {
-					if (subItem.isEmpty()) {
-						Log.get().warn("Found an empty subItem of {}", item);
-					} else if (subItem.getMetadata() == OreDictionary.WILDCARD_VALUE) {
-						String itemStackInfo = ErrorUtil.getItemStackInfo(subItem);
-						Log.get().error("Found an subItem of {} with wildcard metadata: {}", item, itemStackInfo);
-					} else {
-						if (subItem.getCount() != stackSize) {
-							ItemStack subItemCopy = subItem.copy();
-							subItemCopy.setCount(stackSize);
-							itemStacks.add(subItemCopy);
-						} else {
-							itemStacks.add(subItem);
-						}
-					}
+	public void addSubtypesToList(final List<ItemStack> subtypeList, Item item) {
+		for (CreativeTabs itemTab : item.getCreativeTabs()) {
+			if (itemTab == null) {
+				subtypeList.add(new ItemStack(item, 1));
+			} else {
+				addSubtypesFromCreativeTabToList(subtypeList, item, 1, itemTab);
+			}
+		}
+	}
+
+	private void addSubtypesFromCreativeTabToList(List<ItemStack> subtypeList, Item item, final int stackSize, CreativeTabs itemTab) {
+		NonNullList<ItemStack> subItems = NonNullList.create();
+		try {
+			item.getSubItems(itemTab, subItems);
+		} catch (RuntimeException | LinkageError e) {
+			Log.get().warn("Caught a crash while getting sub-items of {}", item, e);
+		}
+
+		for (ItemStack subItem : subItems) {
+			if (subItem.isEmpty()) {
+				Log.get().warn("Found an empty subItem of {}", item);
+			} else if (subItem.getMetadata() == OreDictionary.WILDCARD_VALUE) {
+				String itemStackInfo = ErrorUtil.getItemStackInfo(subItem);
+				Log.get().error("Found an subItem of {} with wildcard metadata: {}", item, itemStackInfo);
+			} else {
+				if (subItem.getCount() != stackSize) {
+					ItemStack subItemCopy = subItem.copy();
+					subItemCopy.setCount(stackSize);
+					subtypeList.add(subItemCopy);
+				} else {
+					subtypeList.add(subItem);
 				}
 			}
 		}
-
-		return itemStacks;
 	}
 
 	@Override
@@ -266,7 +292,7 @@ public class StackHelper implements IStackHelper {
 		}
 
 		List<ItemStack> allSubtypes = new ArrayList<>();
-		getAllSubtypes(allSubtypes, stacks);
+		addSubtypesToList(allSubtypes, stacks);
 
 		if (isAllNulls(allSubtypes)) {
 			return Collections.emptyList();
@@ -284,14 +310,19 @@ public class StackHelper implements IStackHelper {
 		return true;
 	}
 
-	private void getAllSubtypes(List<ItemStack> subtypesList, Iterable stacks) {
+	private void addSubtypesToList(List<ItemStack> subtypesList, Iterable stacks) {
 		for (Object obj : stacks) {
 			if (obj instanceof ItemStack) {
 				ItemStack itemStack = (ItemStack) obj;
-				List<ItemStack> subtypes = getSubtypes(itemStack);
-				subtypesList.addAll(subtypes);
+				if (!itemStack.isEmpty()) {
+					if (itemStack.getItemDamage() == OreDictionary.WILDCARD_VALUE) {
+						addSubtypesToList(subtypesList, itemStack);
+					} else {
+						subtypesList.add(itemStack);
+					}
+				}
 			} else if (obj instanceof Iterable) {
-				getAllSubtypes(subtypesList, (Iterable) obj);
+				addSubtypesToList(subtypesList, (Iterable) obj);
 			} else if (obj != null) {
 				Log.get().error("Unknown object found: {}", obj);
 			} else {
@@ -335,27 +366,36 @@ public class StackHelper implements IStackHelper {
 
 	private void toItemStackList(UniqueItemStackListBuilder itemStackListBuilder, @Nullable Object input, boolean expandSubtypes) {
 		if (input instanceof ItemStack) {
-			ItemStack stack = (ItemStack) input;
-			if (expandSubtypes && stack.getMetadata() == OreDictionary.WILDCARD_VALUE) {
-				List<ItemStack> subtypes = getSubtypes(stack);
-				for (ItemStack subtype : subtypes) {
-					itemStackListBuilder.add(subtype);
-				}
-			} else {
-				itemStackListBuilder.add(stack);
-			}
+			toItemStackList(itemStackListBuilder, (ItemStack) input, expandSubtypes);
 		} else if (input instanceof String) {
 			List<ItemStack> stacks = OreDictionary.getOres((String) input);
-			toItemStackList(itemStackListBuilder, stacks, expandSubtypes);
+			for (ItemStack stack : stacks) {
+				toItemStackList(itemStackListBuilder, stack, expandSubtypes);
+			}
 		} else if (input instanceof Ingredient) {
-			List<ItemStack> stacks = Arrays.asList(((Ingredient) input).getMatchingStacks());
-			toItemStackList(itemStackListBuilder, stacks, expandSubtypes);
+			List<ItemStack> stacks = getMatchingStacks((Ingredient) input);
+			for (ItemStack stack : stacks) {
+				toItemStackList(itemStackListBuilder, stack, expandSubtypes);
+			}
 		} else if (input instanceof Iterable) {
 			for (Object obj : (Iterable) input) {
 				toItemStackList(itemStackListBuilder, obj, expandSubtypes);
 			}
 		} else if (input != null) {
 			Log.get().error("Unknown object found: {}", input);
+		}
+	}
+
+	private void toItemStackList(UniqueItemStackListBuilder itemStackListBuilder, @Nullable ItemStack itemStack, boolean expandSubtypes) {
+		if (itemStack != null) {
+			if (expandSubtypes && itemStack.getMetadata() == OreDictionary.WILDCARD_VALUE) {
+				List<ItemStack> subtypes = getSubtypes(itemStack);
+				for (ItemStack subtype : subtypes) {
+					itemStackListBuilder.add(subtype);
+				}
+			} else {
+				itemStackListBuilder.add(itemStack);
+			}
 		}
 	}
 
@@ -396,11 +436,11 @@ public class StackHelper implements IStackHelper {
 					NBTTagCompound nbtTagCompound = serializedNbt.getCompoundTag("tag").copy();
 					if (serializedNbt.hasKey("ForgeCaps")) {
 						NBTTagCompound forgeCaps = serializedNbt.getCompoundTag("ForgeCaps");
-						if (!forgeCaps.hasNoTags()) { // ForgeCaps should never be empty
+						if (!forgeCaps.isEmpty()) { // ForgeCaps should never be empty
 							nbtTagCompound.setTag("ForgeCaps", forgeCaps);
 						}
 					}
-					if (!nbtTagCompound.hasNoTags()) {
+					if (!nbtTagCompound.isEmpty()) {
 						itemKey.append(':').append(nbtTagCompound);
 					}
 				} else if (stack.getHasSubtypes()) {

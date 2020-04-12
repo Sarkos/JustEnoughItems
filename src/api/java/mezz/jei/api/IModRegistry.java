@@ -1,9 +1,18 @@
 package mezz.jei.api;
 
+import java.util.Collection;
+import java.util.List;
+
+import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.inventory.GuiContainer;
+import net.minecraft.item.ItemStack;
+
 import mezz.jei.api.gui.IAdvancedGuiHandler;
 import mezz.jei.api.gui.IGhostIngredientHandler;
+import mezz.jei.api.gui.IGlobalGuiHandler;
 import mezz.jei.api.gui.IGuiScreenHandler;
 import mezz.jei.api.ingredients.IIngredientRegistry;
+import mezz.jei.api.recipe.IIngredientType;
 import mezz.jei.api.recipe.IRecipeCategory;
 import mezz.jei.api.recipe.IRecipeCategoryRegistration;
 import mezz.jei.api.recipe.IRecipeHandler;
@@ -13,12 +22,6 @@ import mezz.jei.api.recipe.IRecipeWrapperFactory;
 import mezz.jei.api.recipe.IVanillaRecipeFactory;
 import mezz.jei.api.recipe.VanillaRecipeCategoryUid;
 import mezz.jei.api.recipe.transfer.IRecipeTransferRegistry;
-import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.gui.inventory.GuiContainer;
-import net.minecraft.item.ItemStack;
-
-import java.util.Collection;
-import java.util.List;
 
 /**
  * Entry point for the JEI API, functions for registering recipes are available from here.
@@ -89,8 +92,17 @@ public interface IModRegistry {
 	void addAdvancedGuiHandlers(IAdvancedGuiHandler<?>... advancedGuiHandlers);
 
 	/**
+	 * Add a handler to give JEI extra information about how to layout the item list.
+	 * Used for guis that display next to GUIs and would normally intersect with JEI.
+	 *
+	 * @since JEI 4.14.0
+	 */
+	void addGlobalGuiHandlers(IGlobalGuiHandler... globalGuiHandlers);
+
+	/**
 	 * Add a handler to let JEI draw next to a specific class (or subclass) of {@link GuiScreen}.
 	 * By default, JEI can only draw next to {@link GuiContainer}.
+	 *
 	 * @since JEI 4.8.4
 	 */
 	<T extends GuiScreen> void addGuiScreenHandler(Class<T> guiClass, IGuiScreenHandler<T> handler);
@@ -99,6 +111,7 @@ public interface IModRegistry {
 	 * Lets mods accept ghost ingredients from JEI.
 	 * These ingredients are dragged from the ingredient list on to your gui, and are useful
 	 * for setting recipes or anything else that does not need the real ingredient to exist.
+	 *
 	 * @since JEI 4.8.4
 	 */
 	<T extends GuiScreen> void addGhostIngredientHandler(Class<T> guiClass, IGhostIngredientHandler<T> handler);
@@ -108,28 +121,28 @@ public interface IModRegistry {
 	 * Description pages show in the recipes for an ingredient and tell the player a little bit about it.
 	 *
 	 * @param ingredient      the ingredient to describe
-	 * @param ingredientClass the class of the ingredient
+	 * @param ingredientType  the type of the ingredient
 	 * @param descriptionKeys Localization keys for info text.
 	 *                        New lines can be added with "\n" or by giving multiple descriptionKeys.
 	 *                        Long lines are wrapped automatically.
 	 *                        Very long entries will span multiple pages automatically.
-	 * @since JEI 4.5.0
+	 * @since JEI 4.12.0
 	 */
-	<T> void addIngredientInfo(T ingredient, Class<? extends T> ingredientClass, String... descriptionKeys);
+	<T> void addIngredientInfo(T ingredient, IIngredientType<T> ingredientType, String... descriptionKeys);
 
 	/**
 	 * Add an info page for multiple ingredients together.
 	 * Description pages show in the recipes for an ingredient and tell the player a little bit about it.
 	 *
 	 * @param ingredients     the ingredients to describe
-	 * @param ingredientClass the class of the ingredients
+	 * @param ingredientType  the type of the ingredients
 	 * @param descriptionKeys Localization keys for info text.
 	 *                        New lines can be added with "\n" or by giving multiple descriptionKeys.
 	 *                        Long lines are wrapped automatically.
 	 *                        Very long entries will span multiple pages automatically.
-	 * @since JEI 4.5.0
+	 * @since JEI 4.12.0
 	 */
-	<T> void addIngredientInfo(List<T> ingredients, Class<? extends T> ingredientClass, String... descriptionKeys);
+	<T> void addIngredientInfo(List<T> ingredients, IIngredientType<T> ingredientType, String... descriptionKeys);
 
 	/**
 	 * Get the registry for setting up recipe transfer.
@@ -145,6 +158,38 @@ public interface IModRegistry {
 	void addRecipeRegistryPlugin(IRecipeRegistryPlugin recipeRegistryPlugin);
 
 	// DEPRECATED BELOW
+
+	/**
+	 * Add an info page for multiple ingredients together.
+	 * Description pages show in the recipes for an ingredient and tell the player a little bit about it.
+	 *
+	 * @param ingredients     the ingredients to describe
+	 * @param ingredientClass the class of the ingredients
+	 * @param descriptionKeys Localization keys for info text.
+	 *                        New lines can be added with "\n" or by giving multiple descriptionKeys.
+	 *                        Long lines are wrapped automatically.
+	 *                        Very long entries will span multiple pages automatically.
+	 * @since JEI 4.5.0
+	 * @deprecated since JEI 4.12.0. Use {@link #addIngredientInfo(List, IIngredientType, String...)}
+	 */
+	@Deprecated
+	<T> void addIngredientInfo(List<T> ingredients, Class<? extends T> ingredientClass, String... descriptionKeys);
+
+	/**
+	 * Add an info page for an ingredient.
+	 * Description pages show in the recipes for an ingredient and tell the player a little bit about it.
+	 *
+	 * @param ingredient      the ingredient to describe
+	 * @param ingredientClass the class of the ingredient
+	 * @param descriptionKeys Localization keys for info text.
+	 *                        New lines can be added with "\n" or by giving multiple descriptionKeys.
+	 *                        Long lines are wrapped automatically.
+	 *                        Very long entries will span multiple pages automatically.
+	 * @since JEI 4.5.0
+	 * @deprecated since JEI 4.12.0. Use {@link #addIngredientInfo(Object, IIngredientType, String...)}
+	 */
+	@Deprecated
+	<T> void addIngredientInfo(T ingredient, Class<? extends T> ingredientClass, String... descriptionKeys);
 
 	/**
 	 * Add the recipe categories provided by this plugin.
@@ -193,13 +238,13 @@ public interface IModRegistry {
 	 *                        New lines can be added with "\n" or by giving multiple descriptionKeys.
 	 *                        Long lines are wrapped automatically.
 	 *                        Very long entries will span multiple pages automatically.
-	 * @deprecated since JEI 4.5.0. Use {@link #addIngredientInfo(Object, Class, String...)}
+	 * @deprecated since JEI 4.5.0. Use {@link #addIngredientInfo(Object, IIngredientType, String...)}
 	 */
 	@Deprecated
 	void addDescription(ItemStack itemStack, String... descriptionKeys);
 
 	/**
-	 * @deprecated since JEI 4.5.0. Use {@link #addIngredientInfo(List, Class, String...)}
+	 * @deprecated since JEI 4.5.0. Use {@link #addIngredientInfo(List, IIngredientType, String...)}
 	 */
 	@Deprecated
 	void addDescription(List<ItemStack> itemStacks, String... descriptionKeys);

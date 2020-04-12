@@ -2,12 +2,20 @@ package mezz.jei.plugins.vanilla.crafting;
 
 import java.util.List;
 
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.init.Blocks;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.text.TextFormatting;
+
 import mezz.jei.api.IGuiHelper;
 import mezz.jei.api.gui.ICraftingGridHelper;
 import mezz.jei.api.gui.IDrawable;
 import mezz.jei.api.gui.IGuiItemStackGroup;
 import mezz.jei.api.gui.IRecipeLayout;
 import mezz.jei.api.ingredients.IIngredients;
+import mezz.jei.api.ingredients.VanillaTypes;
 import mezz.jei.api.recipe.IRecipeCategory;
 import mezz.jei.api.recipe.IRecipeWrapper;
 import mezz.jei.api.recipe.VanillaRecipeCategoryUid;
@@ -17,12 +25,6 @@ import mezz.jei.api.recipe.wrapper.IShapedCraftingRecipeWrapper;
 import mezz.jei.config.Constants;
 import mezz.jei.startup.ForgeModIdHelper;
 import mezz.jei.util.Translator;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.init.Blocks;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.text.TextFormatting;
 
 public class CraftingRecipeCategory implements IRecipeCategory<IRecipeWrapper> {
 
@@ -89,8 +91,8 @@ public class CraftingRecipeCategory implements IRecipeCategory<IRecipeWrapper> {
 			return;
 		}
 
-		List<List<ItemStack>> inputs = ingredients.getInputs(ItemStack.class);
-		List<List<ItemStack>> outputs = ingredients.getOutputs(ItemStack.class);
+		List<List<ItemStack>> inputs = ingredients.getInputs(VanillaTypes.ITEM);
+		List<List<ItemStack>> outputs = ingredients.getOutputs(VanillaTypes.ITEM);
 
 		if (recipeWrapper instanceof IShapedCraftingRecipeWrapper) {
 			IShapedCraftingRecipeWrapper wrapper = (IShapedCraftingRecipeWrapper) recipeWrapper;
@@ -107,12 +109,12 @@ public class CraftingRecipeCategory implements IRecipeCategory<IRecipeWrapper> {
 			if (registryName != null) {
 				guiItemStacks.addTooltipCallback((slotIndex, input, ingredient, tooltip) -> {
 					if (slotIndex == craftOutputSlot) {
-						String recipeModId = registryName.getResourceDomain();
+						String recipeModId = registryName.getNamespace();
 
 						boolean modIdDifferent = false;
 						ResourceLocation itemRegistryName = ingredient.getItem().getRegistryName();
 						if (itemRegistryName != null) {
-							String itemModId = itemRegistryName.getResourceDomain();
+							String itemModId = itemRegistryName.getNamespace();
 							modIdDifferent = !recipeModId.equals(itemModId);
 						}
 

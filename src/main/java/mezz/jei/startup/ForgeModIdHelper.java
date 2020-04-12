@@ -5,20 +5,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import net.minecraftforge.fml.common.Loader;
+import net.minecraftforge.fml.common.ModContainer;
+import net.minecraftforge.event.ForgeEventFactory;
+import net.minecraftforge.event.entity.player.ItemTooltipEvent;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.util.ITooltipFlag;
+import net.minecraft.enchantment.EnchantmentData;
+import net.minecraft.init.Items;
+import net.minecraft.item.ItemStack;
+import net.minecraft.util.text.TextFormatting;
+
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.config.Config;
 import mezz.jei.config.Constants;
 import mezz.jei.util.Log;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.EntityPlayerSP;
-import net.minecraft.client.util.ITooltipFlag;
-import net.minecraft.init.Items;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.text.TextFormatting;
-import net.minecraftforge.event.ForgeEventFactory;
-import net.minecraftforge.event.entity.player.ItemTooltipEvent;
-import net.minecraftforge.fml.common.Loader;
-import net.minecraftforge.fml.common.ModContainer;
 import org.apache.commons.lang3.StringUtils;
 
 public class ForgeModIdHelper extends AbstractModIdHelper {
@@ -102,11 +104,13 @@ public class ForgeModIdHelper extends AbstractModIdHelper {
 	@Override
 	public <T> List<String> addModNameToIngredientTooltip(List<String> tooltip, T ingredient, IIngredientHelper<T> ingredientHelper) {
 		if (Config.isDebugModeEnabled() && Minecraft.getMinecraft().gameSettings.advancedItemTooltips) {
+			tooltip = new ArrayList<>(tooltip);
 			tooltip.add(TextFormatting.GRAY + "JEI Debug:");
 			tooltip.add(TextFormatting.GRAY + "info: " + ingredientHelper.getErrorInfo(ingredient));
 			tooltip.add(TextFormatting.GRAY + "uid: " + ingredientHelper.getUniqueId(ingredient));
 		}
-		if (Config.isModNameFormatOverrideActive() && ingredient instanceof ItemStack) { // we detected that another mod is adding the mod name already
+		if (Config.isModNameFormatOverrideActive() && (ingredient instanceof ItemStack || ingredient instanceof EnchantmentData)) {
+			// we detected that another mod is adding the mod name already
 			return tooltip;
 		}
 		return super.addModNameToIngredientTooltip(tooltip, ingredient, ingredientHelper);

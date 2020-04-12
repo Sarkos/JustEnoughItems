@@ -16,11 +16,8 @@ public final class MathUtil {
 	public static int clamp(int value, int min, int max) {
 		if (value < min) {
 			return min;
-		} else if (value > max) {
-			return max;
-		} else {
-			return value;
 		}
+		return Math.min(value, max);
 	}
 
 	public static boolean intersects(Collection<Rectangle> areas, Rectangle comparisonArea) {
@@ -30,6 +27,17 @@ public final class MathUtil {
 			}
 		}
 		return false;
+	}
+
+	public static Rectangle moveDownToAvoidIntersection(Collection<Rectangle> areas, Rectangle comparisonArea) {
+		for (Rectangle area : areas) {
+			if (area.intersects(comparisonArea)) {
+				Rectangle movedDown = new Rectangle(comparisonArea);
+				movedDown.y = area.y + area.height;
+				return moveDownToAvoidIntersection(areas, movedDown);
+			}
+		}
+		return comparisonArea;
 	}
 
 	public static boolean contains(Collection<Rectangle> areas, int x, int y) {

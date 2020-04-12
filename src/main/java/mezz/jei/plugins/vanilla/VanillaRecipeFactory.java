@@ -1,6 +1,9 @@
 package mezz.jei.plugins.vanilla;
 
+import java.util.Collections;
 import java.util.List;
+
+import net.minecraft.item.ItemStack;
 
 import com.google.common.base.Preconditions;
 import mezz.jei.api.recipe.IRecipeWrapper;
@@ -9,7 +12,6 @@ import mezz.jei.plugins.vanilla.anvil.AnvilRecipeWrapper;
 import mezz.jei.plugins.vanilla.brewing.BrewingRecipeWrapper;
 import mezz.jei.plugins.vanilla.furnace.SmeltingRecipe;
 import mezz.jei.util.ErrorUtil;
-import net.minecraft.item.ItemStack;
 
 public class VanillaRecipeFactory implements IVanillaRecipeFactory {
 	@Override
@@ -19,7 +21,18 @@ public class VanillaRecipeFactory implements IVanillaRecipeFactory {
 		ErrorUtil.checkNotEmpty(outputs, "outputs");
 		Preconditions.checkArgument(rightInputs.size() == outputs.size(), "Input and output sizes must match.");
 
-		return new AnvilRecipeWrapper(leftInput, rightInputs, outputs);
+		return new AnvilRecipeWrapper(Collections.singletonList(leftInput), rightInputs, outputs);
+	}
+
+	@Override
+	public IRecipeWrapper createAnvilRecipe(List<ItemStack> leftInputs, List<ItemStack> rightInputs, List<ItemStack> outputs) {
+		ErrorUtil.checkNotEmpty(leftInputs, "leftInput");
+		ErrorUtil.checkNotEmpty(rightInputs, "rightInputs");
+		ErrorUtil.checkNotEmpty(outputs, "outputs");
+		Preconditions.checkArgument(leftInputs.size() == rightInputs.size(), "Both input sizes must match.");
+		Preconditions.checkArgument(rightInputs.size() == outputs.size(), "Input and output sizes must match.");
+
+		return new AnvilRecipeWrapper(leftInputs, rightInputs, outputs);
 	}
 
 	@Override

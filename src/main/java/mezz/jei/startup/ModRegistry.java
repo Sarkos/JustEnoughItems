@@ -1,5 +1,20 @@
 package mezz.jei.startup;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.gui.inventory.GuiContainer;
+import net.minecraft.client.gui.inventory.GuiContainerCreative;
+import net.minecraft.client.gui.inventory.GuiInventory;
+import net.minecraft.item.ItemStack;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableTable;
@@ -8,8 +23,11 @@ import mezz.jei.api.IJeiHelpers;
 import mezz.jei.api.IModRegistry;
 import mezz.jei.api.gui.IAdvancedGuiHandler;
 import mezz.jei.api.gui.IGhostIngredientHandler;
+import mezz.jei.api.gui.IGlobalGuiHandler;
 import mezz.jei.api.gui.IGuiScreenHandler;
 import mezz.jei.api.ingredients.IIngredientRegistry;
+import mezz.jei.api.ingredients.VanillaTypes;
+import mezz.jei.api.recipe.IIngredientType;
 import mezz.jei.api.recipe.IRecipeCategory;
 import mezz.jei.api.recipe.IRecipeCategoryRegistration;
 import mezz.jei.api.recipe.IRecipeHandler;
@@ -30,20 +48,6 @@ import mezz.jei.recipes.RecipeTransferRegistry;
 import mezz.jei.runtime.JeiHelpers;
 import mezz.jei.util.ErrorUtil;
 import mezz.jei.util.Log;
-import net.minecraft.client.gui.GuiScreen;
-import net.minecraft.client.gui.inventory.GuiContainer;
-import net.minecraft.client.gui.inventory.GuiContainerCreative;
-import net.minecraft.client.gui.inventory.GuiInventory;
-import net.minecraft.item.ItemStack;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 
 public class ModRegistry implements IModRegistry, IRecipeCategoryRegistration {
 	private final IJeiHelpers jeiHelpers;
@@ -55,6 +59,7 @@ public class ModRegistry implements IModRegistry, IRecipeCategoryRegistration {
 	private final ListMultiMap<String, IRecipeHandler> recipeHandlers = new ListMultiMap<>();
 	private final SetMultiMap<String, Class> recipeHandlerClasses = new SetMultiMap<>();
 	private final List<IAdvancedGuiHandler<?>> advancedGuiHandlers = new ArrayList<>();
+	private final List<IGlobalGuiHandler> globalGuiHandlers = new ArrayList<>();
 	private final Map<Class, IGuiScreenHandler> guiScreenHandlers = new HashMap<>();
 	private final Map<Class, IGhostIngredientHandler> ghostIngredientHandlers = new HashMap<>();
 	@Deprecated
@@ -82,6 +87,7 @@ public class ModRegistry implements IModRegistry, IRecipeCategoryRegistration {
 	}
 
 	@Override
+	@Deprecated
 	public void addRecipeCategories(IRecipeCategory... recipeCategories) {
 		ErrorUtil.checkNotEmpty(recipeCategories, "recipeCategories");
 
@@ -208,6 +214,12 @@ public class ModRegistry implements IModRegistry, IRecipeCategoryRegistration {
 	}
 
 	@Override
+	public void addGlobalGuiHandlers(IGlobalGuiHandler... globalGuiHandlers) {
+		ErrorUtil.checkNotEmpty(globalGuiHandlers, "globalGuiHandlers");
+		Collections.addAll(this.globalGuiHandlers, globalGuiHandlers);
+	}
+
+	@Override
 	public <T extends GuiScreen> void addGuiScreenHandler(Class<T> guiClass, IGuiScreenHandler<T> handler) {
 		ErrorUtil.checkNotNull(guiClass, "guiClass");
 		Preconditions.checkArgument(GuiScreen.class.isAssignableFrom(guiClass), "guiClass must inherit from GuiScreen");
@@ -232,25 +244,33 @@ public class ModRegistry implements IModRegistry, IRecipeCategoryRegistration {
 	@Override
 	@Deprecated
 	public void addDescription(List<ItemStack> itemStacks, String... descriptionKeys) {
-		addIngredientInfo(itemStacks, ItemStack.class, descriptionKeys);
+		addIngredientInfo(itemStacks, VanillaTypes.ITEM, descriptionKeys);
 	}
 
 	@Override
 	@Deprecated
 	public void addDescription(ItemStack itemStack, String... descriptionKeys) {
-		addIngredientInfo(itemStack, ItemStack.class, descriptionKeys);
+		addIngredientInfo(itemStack, VanillaTypes.ITEM, descriptionKeys);
 	}
 
 	@Override
-	public <T> void addIngredientInfo(T ingredient, Class<? extends T> ingredientClass, String... descriptionKeys) {
+	public <T> void addIngredientInfo(T ingredient, IIngredientType<T> ingredientType, String... descriptionKeys) {
 		ErrorUtil.checkIsValidIngredient(ingredient, "ingredient");
+		ErrorUtil.checkNotNull(ingredientType, "ingredientType");
 		ErrorUtil.checkNotEmpty(descriptionKeys, "descriptionKeys");
 
-		addIngredientInfo(Collections.singletonList(ingredient), ingredientClass, descriptionKeys);
+		addIngredientInfo(Collections.singletonList(ingredient), ingredientType, descriptionKeys);
 	}
 
 	@Override
-	public <T> void addIngredientInfo(List<T> ingredients, Class<? extends T> ingredientClass, String... descriptionKeys) {
+	@Deprecated
+	public <T> void addIngredientInfo(T ingredient, Class<? extends T> ingredientClass, String... descriptionKeys) {
+		IIngredientType<T> ingredientType = ingredientRegistry.getIngredientType(ingredientClass);
+		addIngredientInfo(ingredient, ingredientType, descriptionKeys);
+	}
+
+	@Override
+	public <T> void addIngredientInfo(List<T> ingredients, IIngredientType<T> ingredientType, String... descriptionKeys) {
 		ErrorUtil.checkNotEmpty(ingredients, "ingredients");
 		for (Object ingredient : ingredients) {
 			ErrorUtil.checkIsValidIngredient(ingredient, "ingredient");
@@ -258,18 +278,26 @@ public class ModRegistry implements IModRegistry, IRecipeCategoryRegistration {
 		ErrorUtil.checkNotEmpty(descriptionKeys, "descriptionKeys");
 
 		IGuiHelper guiHelper = jeiHelpers.getGuiHelper();
-		List<IngredientInfoRecipe<T>> recipes = IngredientInfoRecipe.create(guiHelper, ingredients, ingredientClass, descriptionKeys);
+		List<IngredientInfoRecipe<T>> recipes = IngredientInfoRecipe.create(guiHelper, ingredients, ingredientType, descriptionKeys);
 		addRecipes(recipes, VanillaRecipeCategoryUid.INFORMATION);
 	}
 
 	@Override
+	@Deprecated
+	public <T> void addIngredientInfo(List<T> ingredients, Class<? extends T> ingredientClass, String... descriptionKeys) {
+		IIngredientType<T> ingredientType = ingredientRegistry.getIngredientType(ingredientClass);
+		addIngredientInfo(ingredients, ingredientType, descriptionKeys);
+	}
+
+	@Override
+	@Deprecated
 	public void addAnvilRecipe(ItemStack leftInput, List<ItemStack> rightInputs, List<ItemStack> outputs) {
 		ErrorUtil.checkNotEmpty(leftInput, "leftInput");
 		ErrorUtil.checkNotEmpty(rightInputs, "rightInputs");
 		ErrorUtil.checkNotEmpty(outputs, "outputs");
 		Preconditions.checkArgument(rightInputs.size() == outputs.size(), "Input and output sizes must match.");
 
-		AnvilRecipeWrapper anvilRecipeWrapper = new AnvilRecipeWrapper(leftInput, rightInputs, outputs);
+		AnvilRecipeWrapper anvilRecipeWrapper = new AnvilRecipeWrapper(Collections.singletonList(leftInput), rightInputs, outputs);
 		addRecipes(Collections.singletonList(anvilRecipeWrapper), VanillaRecipeCategoryUid.ANVIL);
 	}
 
@@ -288,6 +316,10 @@ public class ModRegistry implements IModRegistry, IRecipeCategoryRegistration {
 
 	public List<IAdvancedGuiHandler<?>> getAdvancedGuiHandlers() {
 		return advancedGuiHandlers;
+	}
+
+	public List<IGlobalGuiHandler> getGlobalGuiHandlers() {
+		return globalGuiHandlers;
 	}
 
 	public Map<Class, IGuiScreenHandler> getGuiScreenHandlers() {

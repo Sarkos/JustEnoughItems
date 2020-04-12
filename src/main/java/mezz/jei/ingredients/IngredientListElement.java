@@ -3,11 +3,9 @@ package mezz.jei.ingredients;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -20,16 +18,9 @@ import mezz.jei.startup.IModIdHelper;
 import mezz.jei.util.LegacyUtil;
 import mezz.jei.util.Log;
 import mezz.jei.util.Translator;
-import net.minecraft.client.resources.I18n;
-import net.minecraft.creativetab.CreativeTabs;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraftforge.oredict.OreDictionary;
 
 public class IngredientListElement<V> implements IIngredientListElement<V> {
 	private static final Pattern SPACE_PATTERN = Pattern.compile("\\s");
-	private static final Map<String, Integer> WILDCARD_ADDED_ORDER = new HashMap<>();
-	private static int ADDED_INDEX = 0;
 
 	private final V ingredient;
 	private final int orderIndex;
@@ -42,18 +33,8 @@ public class IngredientListElement<V> implements IIngredientListElement<V> {
 	private boolean visible = true;
 
 	@Nullable
-	public static <V> IngredientListElement<V> create(V ingredient, IIngredientHelper<V> ingredientHelper, IIngredientRenderer<V> ingredientRenderer, IModIdHelper modIdHelper) {
+	public static <V> IngredientListElement<V> create(V ingredient, IIngredientHelper<V> ingredientHelper, IIngredientRenderer<V> ingredientRenderer, IModIdHelper modIdHelper, int orderIndex) {
 		try {
-			final int orderIndex;
-			String uid = ingredientHelper.getWildcardId(ingredient);
-			if (WILDCARD_ADDED_ORDER.containsKey(uid)) {
-				orderIndex = WILDCARD_ADDED_ORDER.get(uid);
-			} else {
-				WILDCARD_ADDED_ORDER.put(uid, ADDED_INDEX);
-				orderIndex = ADDED_INDEX;
-				ADDED_INDEX++;
-			}
-
 			return new IngredientListElement<>(ingredient, orderIndex, ingredientHelper, ingredientRenderer, modIdHelper);
 		} catch (RuntimeException e) {
 			try {
@@ -144,36 +125,18 @@ public class IngredientListElement<V> implements IIngredientListElement<V> {
 
 	@Override
 	public Collection<String> getOreDictStrings() {
-		Collection<String> oreDictStrings = new ArrayList<>();
-
-		if (ingredient instanceof ItemStack) {
-			ItemStack itemStack = (ItemStack) ingredient;
-			for (int oreId : OreDictionary.getOreIDs(itemStack)) {
-				String oreNameLowercase = OreDictionary.getOreName(oreId).toLowerCase(Locale.ENGLISH);
-				oreDictStrings.add(oreNameLowercase);
-			}
-		}
-
-		return oreDictStrings;
+		Collection<String> oreDictNames = ingredientHelper.getOreDictNames(ingredient);
+		return oreDictNames.stream()
+			.map(s -> s.toLowerCase(Locale.ENGLISH))
+			.collect(Collectors.toList());
 	}
 
 	@Override
 	public Collection<String> getCreativeTabsStrings() {
-		Collection<String> creativeTabsStrings = new ArrayList<>();
-
-		if (ingredient instanceof ItemStack) {
-			ItemStack itemStack = (ItemStack) ingredient;
-			Item item = itemStack.getItem();
-			for (CreativeTabs creativeTab : item.getCreativeTabs()) {
-				if (creativeTab != null) {
-					String creativeTabName = I18n.format(creativeTab.getTranslatedTabLabel());
-					String creativeTabNameLowercase = Translator.toLowercaseWithLocale(creativeTabName);
-					creativeTabsStrings.add(creativeTabNameLowercase);
-				}
-			}
-		}
-
-		return creativeTabsStrings;
+		Collection<String> creativeTabsStrings = ingredientHelper.getCreativeTabNames(ingredient);
+		return creativeTabsStrings.stream()
+			.map(Translator::toLowercaseWithLocale)
+			.collect(Collectors.toList());
 	}
 
 	@Override

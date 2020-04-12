@@ -1,10 +1,6 @@
 package mezz.jei.util;
 
-import mezz.jei.Internal;
-import mezz.jei.api.ingredients.IIngredientHelper;
-import mezz.jei.startup.StackHelper;
-import net.minecraft.item.ItemStack;
-
+import javax.annotation.Nullable;
 import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
@@ -13,10 +9,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
+import net.minecraft.item.ItemStack;
+
+import mezz.jei.Internal;
+import mezz.jei.api.ingredients.IIngredientHelper;
+import mezz.jei.api.ingredients.VanillaTypes;
+import mezz.jei.api.recipe.IIngredientType;
+import mezz.jei.startup.StackHelper;
+
 public class IngredientSet<V> extends AbstractSet<V> {
-	public static <V> IngredientSet<V> create(Class<V> ingredientClass, IIngredientHelper<V> ingredientHelper) {
+	public static <V> IngredientSet<V> create(IIngredientType<V> ingredientType, IIngredientHelper<V> ingredientHelper) {
 		final Function<V, String> uidGenerator;
-		if (ingredientClass == ItemStack.class) {
+		if (ingredientType == VanillaTypes.ITEM) {
 			StackHelper stackHelper = Internal.getStackHelper();
 			uidGenerator = stack -> stackHelper.getUniqueIdentifierForStack((ItemStack) stack, StackHelper.UidMode.FULL);
 		} else {
@@ -64,6 +68,11 @@ public class IngredientSet<V> extends AbstractSet<V> {
 		//noinspection unchecked
 		String uid = uidGenerator.apply((V) o);
 		return ingredients.containsKey(uid);
+	}
+
+	@Nullable
+	public V getByUid(String uid) {
+		return ingredients.get(uid);
 	}
 
 	@Override

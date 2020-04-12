@@ -1,63 +1,51 @@
 package mezz.jei.gui.overlay;
 
-import com.google.common.collect.ImmutableList;
-import mezz.jei.Internal;
-import mezz.jei.api.IIngredientListOverlay;
-import mezz.jei.api.IItemListOverlay;
-import mezz.jei.api.gui.IGuiProperties;
-import mezz.jei.config.Config;
-import mezz.jei.config.KeyBindings;
-import mezz.jei.gui.ghost.GhostIngredientDragManager;
-import mezz.jei.gui.ingredients.IIngredientListElement;
-import mezz.jei.gui.recipes.RecipesGui;
-import mezz.jei.ingredients.IngredientFilter;
-import mezz.jei.input.GuiTextFieldFilter;
-import mezz.jei.input.IClickedIngredient;
-import mezz.jei.input.IMouseHandler;
-import mezz.jei.input.IShowsRecipeFocuses;
-import mezz.jei.runtime.JeiRuntime;
-import mezz.jei.util.CommandUtil;
-import mezz.jei.util.ErrorUtil;
-import mezz.jei.util.Log;
+import javax.annotation.Nullable;
+import java.awt.Rectangle;
+import java.util.List;
+import java.util.Set;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.gui.GuiScreen;
 import net.minecraft.client.gui.inventory.GuiContainer;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.item.ItemStack;
-import net.minecraft.util.NonNullList;
 
-import javax.annotation.Nullable;
-import java.awt.Rectangle;
-import java.util.Collection;
-import java.util.List;
+import com.google.common.collect.ImmutableList;
+import mezz.jei.api.IIngredientListOverlay;
+import mezz.jei.api.gui.IGuiProperties;
+import mezz.jei.config.Config;
+import mezz.jei.config.KeyBindings;
+import mezz.jei.gui.GuiScreenHelper;
+import mezz.jei.gui.elements.GuiIconToggleButton;
+import mezz.jei.gui.ghost.GhostIngredientDragManager;
+import mezz.jei.gui.ingredients.IIngredientListElement;
+import mezz.jei.gui.recipes.RecipesGui;
+import mezz.jei.ingredients.IngredientFilter;
+import mezz.jei.ingredients.IngredientRegistry;
+import mezz.jei.input.GuiTextFieldFilter;
+import mezz.jei.input.IClickedIngredient;
+import mezz.jei.input.IMouseHandler;
+import mezz.jei.input.IShowsRecipeFocuses;
+import mezz.jei.util.CommandUtil;
+import mezz.jei.util.Log;
 
-public class IngredientListOverlay implements IItemListOverlay, IIngredientListOverlay, IMouseHandler, IShowsRecipeFocuses {
+public class IngredientListOverlay implements IIngredientListOverlay, IMouseHandler, IShowsRecipeFocuses {
 	private static final int BORDER_PADDING = 2;
 	private static final int BUTTON_SIZE = 20;
 	private static final int SEARCH_HEIGHT = 20;
-
-	/**
-	 * @return true if this can be displayed next to the gui with the given guiProperties
-	 */
-	private static boolean hasRoom(IGuiProperties guiProperties) {
-		Rectangle displayArea = getDisplayArea(guiProperties);
-		return displayArea.width >= getMinWidth();
-	}
-
-	private static int getMinWidth() {
-		return Math.max(4 * BUTTON_SIZE, Config.smallestNumColumns * IngredientGrid.INGREDIENT_WIDTH);
-	}
+	private boolean hasRoom;
 
 	private static boolean isSearchBarCentered(IGuiProperties guiProperties) {
 		return Config.isCenterSearchBarEnabled() &&
-				guiProperties.getGuiTop() + guiProperties.getGuiYSize() + SEARCH_HEIGHT < guiProperties.getScreenHeight();
+			guiProperties.getGuiTop() + guiProperties.getGuiYSize() + SEARCH_HEIGHT < guiProperties.getScreenHeight();
 	}
 
 	private final IngredientFilter ingredientFilter;
-	private final NonNullList<ItemStack> highlightedStacks = NonNullList.create();
-	private final ConfigButton configButton;
-	private final IngredientGridAll contents;
+	private final GuiIconToggleButton configButton;
+	private final IngredientGridWithNavigation contents;
+	private final GuiScreenHelper guiScreenHelper;
 	private final GuiTextFieldFilter searchField;
 	private final GhostIngredientDragManager ghostIngredientDragManager;
 	private Rectangle displayArea = new Rectangle();
@@ -66,13 +54,15 @@ public class IngredientListOverlay implements IItemListOverlay, IIngredientListO
 	@Nullable
 	private IGuiProperties guiProperties;
 
-	public IngredientListOverlay(IngredientFilter ingredientFilter) {
+	public IngredientListOverlay(IngredientFilter ingredientFilter, IngredientRegistry ingredientRegistry, GuiScreenHelper guiScreenHelper) {
 		this.ingredientFilter = ingredientFilter;
+		this.guiScreenHelper = guiScreenHelper;
 
-		this.contents = new IngredientGridAll(ingredientFilter);
+		this.contents = new IngredientGridWithNavigation(ingredientFilter, guiScreenHelper, GridAlignment.LEFT);
+		ingredientFilter.addListener(() -> onSetFilterText(Config.getFilterText()));
 		this.searchField = new GuiTextFieldFilter(0, ingredientFilter);
-		this.configButton = new ConfigButton(this);
-		this.ghostIngredientDragManager = new GhostIngredientDragManager(this.contents);
+		this.configButton = ConfigButton.create(this);
+		this.ghostIngredientDragManager = new GhostIngredientDragManager(this.contents, guiScreenHelper, ingredientRegistry);
 		this.setKeyboardFocus(false);
 	}
 
@@ -84,40 +74,8 @@ public class IngredientListOverlay implements IItemListOverlay, IIngredientListO
 		updateLayout(true);
 	}
 
-	@Override
-	public String getFilterText() {
-		return Config.getFilterText();
-	}
-
-	@Override
-	public ImmutableList<ItemStack> getFilteredStacks() {
-		List<IIngredientListElement> elements = ingredientFilter.getIngredientList();
-		ImmutableList.Builder<ItemStack> builder = ImmutableList.builder();
-		for (IIngredientListElement element : elements) {
-			Object ingredient = element.getIngredient();
-			if (ingredient instanceof ItemStack) {
-				builder.add((ItemStack) ingredient);
-			}
-		}
-		return builder.build();
-	}
-
-	@Override
-	public void highlightStacks(Collection<ItemStack> stacks) {
-		highlightedStacks.clear();
-		highlightedStacks.addAll(stacks);
-	}
-
 	public boolean isListDisplayed() {
-		return Config.isOverlayEnabled() && this.guiProperties != null && hasRoom(this.guiProperties);
-	}
-
-	private static boolean areGuiPropertiesEqual(IGuiProperties guiProperties1, IGuiProperties guiProperties2) {
-		return guiProperties1.getGuiClass().equals(guiProperties2.getGuiClass()) &&
-			guiProperties1.getGuiLeft() == guiProperties2.getGuiLeft() &&
-			guiProperties1.getGuiXSize() == guiProperties2.getGuiXSize() &&
-			guiProperties1.getScreenWidth() == guiProperties2.getScreenWidth() &&
-			guiProperties1.getScreenHeight() == guiProperties2.getScreenHeight();
+		return Config.isOverlayEnabled() && this.guiProperties != null && this.hasRoom;
 	}
 
 	private static Rectangle getDisplayArea(IGuiProperties guiProperties) {
@@ -128,64 +86,62 @@ public class IngredientListOverlay implements IItemListOverlay, IIngredientListO
 		return new Rectangle(x, y, width, height);
 	}
 
-	public void updateScreen(@Nullable GuiScreen guiScreen) {
-		JeiRuntime runtime = Internal.getRuntime();
-		if (runtime == null) {
-			return;
-		}
+	public void updateScreen(@Nullable GuiScreen guiScreen, boolean forceUpdate) {
 		final boolean wasDisplayed = isListDisplayed();
-		IGuiProperties guiProperties = runtime.getGuiProperties(guiScreen);
+		IGuiProperties guiProperties = guiScreenHelper.getGuiProperties(guiScreen);
 		if (guiProperties == null) {
 			if (this.guiProperties != null) {
 				this.guiProperties = null;
 				setKeyboardFocus(false);
 				this.ghostIngredientDragManager.stopDrag();
 			}
-		} else if (this.guiProperties == null || !areGuiPropertiesEqual(this.guiProperties, guiProperties)) {
-			this.guiProperties = guiProperties;
-			this.displayArea = getDisplayArea(guiProperties);
+		} else {
+			if (forceUpdate || this.guiProperties == null || !GuiProperties.areEqual(this.guiProperties, guiProperties)) {
+				this.guiProperties = guiProperties;
+				this.displayArea = getDisplayArea(guiProperties);
 
-			final boolean searchBarCentered = isSearchBarCentered(guiProperties);
-			final int searchHeight = searchBarCentered ? 0 : SEARCH_HEIGHT + BORDER_PADDING;
+				final boolean searchBarCentered = isSearchBarCentered(guiProperties);
+				final int searchHeight = searchBarCentered ? 0 : SEARCH_HEIGHT + BORDER_PADDING;
 
-			Rectangle availableContentsArea = new Rectangle(
-				displayArea.x,
-				displayArea.y,
-				displayArea.width,
-				displayArea.height - searchHeight
-			);
-			final int minWidth = getMinWidth();
-			this.contents.updateBounds(availableContentsArea, minWidth);
-
-			// update area to match contents size
-			Rectangle contentsArea = this.contents.getArea();
-			displayArea.x = contentsArea.x;
-			displayArea.width = contentsArea.width;
-
-			if (searchBarCentered && isListDisplayed()) {
-				searchField.updateBounds(new Rectangle(
-					guiProperties.getGuiLeft(),
-					guiProperties.getScreenHeight() - SEARCH_HEIGHT - BORDER_PADDING,
-					guiProperties.getGuiXSize() - BUTTON_SIZE + 1,
-					SEARCH_HEIGHT
-				));
-			} else {
-				searchField.updateBounds(new Rectangle(
+				Set<Rectangle> guiExclusionAreas = guiScreenHelper.getGuiExclusionAreas();
+				Rectangle availableContentsArea = new Rectangle(
 					displayArea.x,
-					displayArea.y + displayArea.height - SEARCH_HEIGHT - BORDER_PADDING,
-					displayArea.width - BUTTON_SIZE + 1,
-					SEARCH_HEIGHT
+					displayArea.y,
+					displayArea.width,
+					displayArea.height - searchHeight
+				);
+				hasRoom = this.contents.updateBounds(availableContentsArea, guiExclusionAreas, 4 * BUTTON_SIZE);
+
+				// update area to match contents size
+				Rectangle contentsArea = this.contents.getArea();
+				displayArea.x = contentsArea.x;
+				displayArea.width = contentsArea.width;
+
+				if (searchBarCentered && isListDisplayed()) {
+					searchField.updateBounds(new Rectangle(
+						guiProperties.getGuiLeft(),
+						guiProperties.getScreenHeight() - SEARCH_HEIGHT - BORDER_PADDING,
+						guiProperties.getGuiXSize() - BUTTON_SIZE + 1,
+						SEARCH_HEIGHT
+					));
+				} else {
+					searchField.updateBounds(new Rectangle(
+						displayArea.x,
+						displayArea.y + displayArea.height - SEARCH_HEIGHT - BORDER_PADDING,
+						displayArea.width - BUTTON_SIZE + 1,
+						SEARCH_HEIGHT
+					));
+				}
+
+				this.configButton.updateBounds(new Rectangle(
+					searchField.x + searchField.width - 1,
+					searchField.y,
+					BUTTON_SIZE,
+					BUTTON_SIZE
 				));
+
+				updateLayout(false);
 			}
-
-			this.configButton.updateBounds(new Rectangle(
-				searchField.x + searchField.width - 1,
-				searchField.y,
-				BUTTON_SIZE,
-				BUTTON_SIZE
-			));
-
-			updateLayout(false);
 		}
 		if (wasDisplayed && !isListDisplayed()) {
 			Config.saveFilterText();
@@ -212,19 +168,19 @@ public class IngredientListOverlay implements IItemListOverlay, IIngredientListO
 
 	public void drawTooltips(Minecraft minecraft, int mouseX, int mouseY) {
 		if (isListDisplayed()) {
-			this.configButton.drawTooltips(minecraft, mouseX, mouseY, true);
+			this.configButton.drawTooltips(minecraft, mouseX, mouseY);
 			this.ghostIngredientDragManager.drawTooltips(minecraft, mouseX, mouseY);
 			this.contents.drawTooltips(minecraft, mouseX, mouseY);
 		} else if (this.guiProperties != null) {
-			this.configButton.drawTooltips(minecraft, mouseX, mouseY, false);
+			this.configButton.drawTooltips(minecraft, mouseX, mouseY);
 		}
 	}
 
-	public void drawOnForeground(GuiContainer gui, int mouseX, int mouseY) {
+	public void drawOnForeground(Minecraft minecraft, GuiContainer gui, int mouseX, int mouseY) {
 		if (isListDisplayed()) {
 			GlStateManager.pushMatrix();
 			GlStateManager.translate(-gui.getGuiLeft(), -gui.getGuiTop(), 0);
-			this.ghostIngredientDragManager.drawOnForeground(gui.mc, mouseX, mouseY);
+			this.ghostIngredientDragManager.drawOnForeground(minecraft, mouseX, mouseY);
 			GlStateManager.popMatrix();
 		}
 	}
@@ -348,6 +304,10 @@ public class IngredientListOverlay implements IItemListOverlay, IIngredientListO
 				Config.toggleCheatItemsEnabled();
 				return true;
 			}
+			if (KeyBindings.toggleEditMode.isActiveAndMatches(eventKey)) {
+				Config.toggleEditModeEnabled();
+				return true;
+			}
 			if (KeyBindings.focusSearch.isActiveAndMatches(eventKey)) {
 				setKeyboardFocus(true);
 				return true;
@@ -359,7 +319,7 @@ public class IngredientListOverlay implements IItemListOverlay, IIngredientListO
 	public boolean onKeyPressed(char typedChar, int eventKey) {
 		if (isListDisplayed()) {
 			if (hasKeyboardFocus() &&
-					searchField.textboxKeyTyped(typedChar, eventKey)) {
+				searchField.textboxKeyTyped(typedChar, eventKey)) {
 				boolean changed = Config.setFilterText(searchField.getText());
 				if (changed) {
 					updateLayout(true);
@@ -369,16 +329,6 @@ public class IngredientListOverlay implements IItemListOverlay, IIngredientListO
 			return this.contents.onKeyPressed(typedChar, eventKey);
 		}
 		return false;
-	}
-
-	@Override
-	@Nullable
-	public ItemStack getStackUnderMouse() {
-		Object ingredient = getIngredientUnderMouse();
-		if (ingredient instanceof ItemStack) {
-			return (ItemStack) ingredient;
-		}
-		return null;
 	}
 
 	@Nullable
@@ -393,34 +343,9 @@ public class IngredientListOverlay implements IItemListOverlay, IIngredientListO
 		return null;
 	}
 
-	@Override
-	public void setFilterText(String filterText) {
-		ErrorUtil.checkNotNull(filterText, "filterText");
-		if (Config.setFilterText(filterText)) {
-			onSetFilterText(filterText);
-		}
-	}
-
 	public void onSetFilterText(String filterText) {
 		this.searchField.setText(filterText);
 		updateLayout(true);
-	}
-
-	@Override
-	public ImmutableList<ItemStack> getVisibleStacks() {
-		if (isListDisplayed()) {
-			ImmutableList.Builder<ItemStack> visibleStacks = ImmutableList.builder();
-			List<IIngredientListElement> visibleElements = this.contents.getVisibleElements();
-			for (IIngredientListElement element : visibleElements) {
-				Object ingredient = element.getIngredient();
-				if (ingredient instanceof ItemStack) {
-					visibleStacks.add((ItemStack) ingredient);
-				}
-			}
-
-			return visibleStacks.build();
-		}
-		return ImmutableList.of();
 	}
 
 	@Override

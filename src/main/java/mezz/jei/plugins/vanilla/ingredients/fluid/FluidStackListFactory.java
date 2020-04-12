@@ -1,15 +1,15 @@
-package mezz.jei.plugins.vanilla.ingredients;
+package mezz.jei.plugins.vanilla.ingredients.fluid;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import net.minecraft.block.Block;
-import net.minecraft.init.Items;
-import net.minecraft.item.Item;
 import net.minecraftforge.fluids.Fluid;
 import net.minecraftforge.fluids.FluidRegistry;
 import net.minecraftforge.fluids.FluidStack;
+import net.minecraft.block.Block;
+import net.minecraft.init.Items;
+import net.minecraft.item.Item;
 
 public final class FluidStackListFactory {
 	private FluidStackListFactory() {

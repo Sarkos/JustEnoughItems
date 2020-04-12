@@ -5,15 +5,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import mezz.jei.api.IIngredientFilter;
-import mezz.jei.api.IJeiRuntime;
-import mezz.jei.api.IRecipeRegistry;
-import mezz.jei.api.ingredients.IIngredients;
-import mezz.jei.api.recipe.IRecipeCategory;
-import mezz.jei.api.recipe.IRecipeWrapper;
-import mezz.jei.api.recipe.VanillaRecipeCategoryUid;
-import mezz.jei.plugins.jei.JEIInternalPlugin;
-import mezz.jei.plugins.jei.ingredients.DebugIngredient;
+import net.minecraftforge.fml.client.config.GuiButtonExt;
+import net.minecraftforge.fml.client.config.HoverChecker;
+import net.minecraftforge.fluids.FluidRegistry;
+import net.minecraftforge.fluids.FluidStack;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.gui.GuiScreen;
@@ -21,18 +16,21 @@ import net.minecraft.client.gui.inventory.GuiInventory;
 import net.minecraft.init.Items;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.text.TextFormatting;
-import net.minecraftforge.fluids.FluidRegistry;
-import net.minecraftforge.fluids.FluidStack;
-import net.minecraftforge.fml.client.config.GuiButtonExt;
-import net.minecraftforge.fml.client.config.HoverChecker;
 
-import javax.annotation.Nullable;
+import mezz.jei.api.IIngredientFilter;
+import mezz.jei.api.IJeiRuntime;
+import mezz.jei.api.IRecipeRegistry;
+import mezz.jei.api.ingredients.IIngredients;
+import mezz.jei.api.ingredients.VanillaTypes;
+import mezz.jei.api.recipe.IRecipeWrapper;
+import mezz.jei.api.recipe.VanillaRecipeCategoryUid;
+import mezz.jei.plugins.jei.JEIInternalPlugin;
+import mezz.jei.plugins.jei.ingredients.DebugIngredient;
 
 public class DebugRecipe implements IRecipeWrapper {
 	private final GuiButtonExt button;
 	private final HoverChecker buttonHoverChecker;
-	@Nullable
-	private List<IRecipeWrapper> hiddenRecipes;
+	private boolean hiddenRecipes;
 
 	public DebugRecipe() {
 		this.button = new GuiButtonExt(0, 110, 30, "test");
@@ -50,24 +48,24 @@ public class DebugRecipe implements IRecipeWrapper {
 		FluidStack water = new FluidStack(FluidRegistry.WATER, 1000 + (int) (Math.random() * 1000));
 		FluidStack lava = new FluidStack(FluidRegistry.LAVA, 1000 + (int) (Math.random() * 1000));
 
-		ingredients.setInputs(FluidStack.class, Arrays.asList(water, lava));
+		ingredients.setInputs(VanillaTypes.FLUID, Arrays.asList(water, lava));
 
-		ingredients.setInput(ItemStack.class, new ItemStack(Items.STICK));
+		ingredients.setInput(VanillaTypes.ITEM, new ItemStack(Items.STICK));
 
-		ingredients.setInputLists(DebugIngredient.class, Collections.singletonList(
-				Arrays.asList(new DebugIngredient(0), new DebugIngredient(1))
+		ingredients.setInputLists(DebugIngredient.TYPE, Collections.singletonList(
+			Arrays.asList(new DebugIngredient(0), new DebugIngredient(1))
 		));
 
-		ingredients.setOutputs(DebugIngredient.class, Arrays.asList(
-				new DebugIngredient(2),
-				new DebugIngredient(3)
+		ingredients.setOutputs(DebugIngredient.TYPE, Arrays.asList(
+			new DebugIngredient(2),
+			new DebugIngredient(3)
 		));
 	}
 
 	public List<FluidStack> getFluidInputs() {
 		return Arrays.asList(
-				new FluidStack(FluidRegistry.WATER, 1000 + (int) (Math.random() * 1000)),
-				new FluidStack(FluidRegistry.LAVA, 1000 + (int) (Math.random() * 1000))
+			new FluidStack(FluidRegistry.WATER, 1000 + (int) (Math.random() * 1000)),
+			new FluidStack(FluidRegistry.LAVA, 1000 + (int) (Math.random() * 1000))
 		);
 	}
 
@@ -98,20 +96,12 @@ public class DebugRecipe implements IRecipeWrapper {
 				ingredientFilter.setFilterText(filterText + " test");
 
 				IRecipeRegistry recipeRegistry = runtime.getRecipeRegistry();
-				if (hiddenRecipes == null) {
-					@SuppressWarnings("unchecked")
-					IRecipeCategory<IRecipeWrapper> craftingRecipeCategory = recipeRegistry.getRecipeCategory(VanillaRecipeCategoryUid.CRAFTING);
-					if (craftingRecipeCategory != null) {
-						hiddenRecipes = recipeRegistry.getRecipeWrappers(craftingRecipeCategory);
-					}
-					for (IRecipeWrapper recipeWrapper : hiddenRecipes) {
-						recipeRegistry.hideRecipe(recipeWrapper, VanillaRecipeCategoryUid.CRAFTING);
-					}
+				if (!hiddenRecipes) {
+					recipeRegistry.hideRecipeCategory(VanillaRecipeCategoryUid.CRAFTING);
+					hiddenRecipes = true;
 				} else {
-					for (IRecipeWrapper recipeWrapper : hiddenRecipes) {
-						recipeRegistry.unhideRecipe(recipeWrapper, VanillaRecipeCategoryUid.CRAFTING);
-					}
-					hiddenRecipes = null;
+					recipeRegistry.unhideRecipeCategory(VanillaRecipeCategoryUid.CRAFTING);
+					hiddenRecipes = false;
 				}
 			}
 			return true;

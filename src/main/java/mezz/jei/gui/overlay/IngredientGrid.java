@@ -1,5 +1,16 @@
 package mezz.jei.gui.overlay;
 
+import javax.annotation.Nullable;
+import java.awt.Rectangle;
+import java.util.Collection;
+
+import net.minecraftforge.items.ItemHandlerHelper;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.item.ItemStack;
+
 import mezz.jei.Internal;
 import mezz.jei.JustEnoughItems;
 import mezz.jei.config.Config;
@@ -19,16 +30,6 @@ import mezz.jei.runtime.JeiRuntime;
 import mezz.jei.util.GiveMode;
 import mezz.jei.util.MathUtil;
 import mezz.jei.util.Translator;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.entity.EntityPlayerSP;
-import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.item.ItemStack;
-import net.minecraftforge.items.ItemHandlerHelper;
-
-import javax.annotation.Nullable;
-import java.awt.Rectangle;
-import java.util.Collection;
 
 /**
  * An ingredient grid displays a rectangular area of clickable recipe ingredients.
@@ -37,11 +38,13 @@ public class IngredientGrid implements IShowsRecipeFocuses {
 	private static final int INGREDIENT_PADDING = 1;
 	public static final int INGREDIENT_WIDTH = GuiItemStackGroup.getWidth(INGREDIENT_PADDING);
 	public static final int INGREDIENT_HEIGHT = GuiItemStackGroup.getHeight(INGREDIENT_PADDING);
+	private final GridAlignment alignment;
 
 	private Rectangle area = new Rectangle();
 	protected final IngredientListBatchRenderer guiIngredientSlots;
 
-	public IngredientGrid() {
+	public IngredientGrid(GridAlignment alignment) {
+		this.alignment = alignment;
 		this.guiIngredientSlots = new IngredientListBatchRenderer();
 	}
 
@@ -49,19 +52,28 @@ public class IngredientGrid implements IShowsRecipeFocuses {
 		return this.guiIngredientSlots.size();
 	}
 
-	public void updateBounds(Rectangle availableArea, int minWidth, Collection<Rectangle> exclusionAreas) {
+	public boolean updateBounds(Rectangle availableArea, int minWidth, Collection<Rectangle> exclusionAreas) {
 		final int columns = Math.min(availableArea.width / INGREDIENT_WIDTH, Config.getMaxColumns());
 		final int rows = availableArea.height / INGREDIENT_HEIGHT;
 
 		final int ingredientsWidth = columns * INGREDIENT_WIDTH;
 		final int width = Math.max(ingredientsWidth, minWidth);
 		final int height = rows * INGREDIENT_HEIGHT;
-		final int x = availableArea.x + (availableArea.width - width);
+		final int x;
+		if (alignment == GridAlignment.LEFT) {
+			x = availableArea.x + (availableArea.width - width);
+		} else {
+			x = availableArea.x;
+		}
 		final int y = availableArea.y + (availableArea.height - height) / 2;
 		final int xOffset = x + Math.max(0, (width - ingredientsWidth) / 2);
 
 		this.area = new Rectangle(x, y, width, height);
 		this.guiIngredientSlots.clear();
+
+		if (rows == 0 || columns < Config.smallestNumColumns) {
+			return false;
+		}
 
 		for (int row = 0; row < rows; row++) {
 			int y1 = y + (row * INGREDIENT_HEIGHT);
@@ -74,14 +86,7 @@ public class IngredientGrid implements IShowsRecipeFocuses {
 				this.guiIngredientSlots.add(ingredientListSlot);
 			}
 		}
-	}
-
-	public void updateLayout(Collection<Rectangle> guiExclusionAreas) {
-		for (IngredientListSlot ingredientListSlot : this.guiIngredientSlots.getAllGuiIngredientSlots()) {
-			Rectangle stackArea = ingredientListSlot.getArea();
-			final boolean blocked = MathUtil.intersects(guiExclusionAreas, stackArea);
-			ingredientListSlot.setBlocked(blocked);
-		}
+		return true;
 	}
 
 	public Rectangle getArea() {

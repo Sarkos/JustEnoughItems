@@ -5,9 +5,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.base.Throwables;
-import mezz.jei.JustEnoughItems;
-import mezz.jei.network.packets.PacketCheatPermission;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.CommandEvent;
+import net.minecraftforge.items.ItemHandlerHelper;
 import net.minecraft.command.CommandBase;
 import net.minecraft.command.CommandGive;
 import net.minecraft.command.CommandResultStats;
@@ -27,9 +27,10 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.SoundCategory;
 import net.minecraft.util.text.TextComponentTranslation;
 import net.minecraft.util.text.TextFormatting;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.CommandEvent;
-import net.minecraftforge.items.ItemHandlerHelper;
+
+import com.google.common.base.Throwables;
+import mezz.jei.JustEnoughItems;
+import mezz.jei.network.packets.PacketCheatPermission;
 
 /**
  * Server-side-safe utilities for commands.
@@ -72,7 +73,7 @@ public final class CommandUtilServer {
 			return true;
 		}
 
-		MinecraftServer minecraftServer = sender.mcServer;
+		MinecraftServer minecraftServer = sender.server;
 		ICommand giveCommand = getGiveCommand(sender);
 		if (giveCommand != null && giveCommand.checkPermission(minecraftServer, sender)) {
 			String[] commandParameters = getGiveCommandParameters(sender, itemStack, itemStack.getCount());
@@ -188,7 +189,7 @@ public final class CommandUtilServer {
 
 	@Nullable
 	private static ICommand getGiveCommand(EntityPlayerMP sender) {
-		MinecraftServer minecraftServer = sender.mcServer;
+		MinecraftServer minecraftServer = sender.server;
 		ICommandManager commandManager = minecraftServer.getCommandManager();
 		Map<String, ICommand> commands = commandManager.getCommands();
 		return commands.get("give");

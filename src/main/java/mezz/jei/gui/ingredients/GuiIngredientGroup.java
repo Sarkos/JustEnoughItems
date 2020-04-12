@@ -1,19 +1,5 @@
 package mezz.jei.gui.ingredients;
 
-import mezz.jei.Internal;
-import mezz.jei.api.gui.IDrawable;
-import mezz.jei.api.gui.IGuiIngredientGroup;
-import mezz.jei.api.gui.ITooltipCallback;
-import mezz.jei.api.ingredients.IIngredientHelper;
-import mezz.jei.api.ingredients.IIngredientRenderer;
-import mezz.jei.api.ingredients.IIngredients;
-import mezz.jei.api.recipe.IFocus;
-import mezz.jei.gui.Focus;
-import mezz.jei.ingredients.IngredientRegistry;
-import mezz.jei.util.ErrorUtil;
-import mezz.jei.util.Log;
-import net.minecraft.client.Minecraft;
-
 import javax.annotation.Nullable;
 import java.awt.Color;
 import java.awt.Rectangle;
@@ -25,44 +11,50 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import net.minecraft.client.Minecraft;
+
+import mezz.jei.Internal;
+import mezz.jei.api.gui.IDrawable;
+import mezz.jei.api.gui.IGuiIngredientGroup;
+import mezz.jei.api.gui.ITooltipCallback;
+import mezz.jei.api.ingredients.IIngredientHelper;
+import mezz.jei.api.ingredients.IIngredientRenderer;
+import mezz.jei.api.ingredients.IIngredients;
+import mezz.jei.api.recipe.IFocus;
+import mezz.jei.api.recipe.IIngredientType;
+import mezz.jei.gui.Focus;
+import mezz.jei.ingredients.IngredientRegistry;
+import mezz.jei.util.ErrorUtil;
+import mezz.jei.util.Log;
+
 public class GuiIngredientGroup<T> implements IGuiIngredientGroup<T> {
 	private final Map<Integer, GuiIngredient<T>> guiIngredients = new HashMap<>();
 	private final Set<Integer> inputSlots = new HashSet<>();
 	private final IIngredientHelper<T> ingredientHelper;
 	private final IIngredientRenderer<T> ingredientRenderer;
-	private final Class<T> ingredientClass;
+	private final IIngredientType<T> ingredientType;
 	private final int cycleOffset;
 	/**
 	 * If focus is set and any of the guiIngredients contains focus
 	 * they will only display focus instead of rotating through all their values.
 	 */
 	@Nullable
-	private IFocus<T> inputFocus;
-	@Nullable
-	private IFocus<T> outputFocus;
+	private IFocus<T> focus;
 
 	@Nullable
 	private ITooltipCallback<T> tooltipCallback;
 
-	public GuiIngredientGroup(Class<T> ingredientClass, @Nullable IFocus<T> focus, int cycleOffset) {
-		ErrorUtil.checkNotNull(ingredientClass, "ingredientClass");
-		this.ingredientClass = ingredientClass;
+	public GuiIngredientGroup(IIngredientType<T> ingredientType, @Nullable IFocus<T> focus, int cycleOffset) {
+		ErrorUtil.checkNotNull(ingredientType, "ingredientType");
+		this.ingredientType = ingredientType;
 		if (focus == null) {
-			this.inputFocus = null;
-			this.outputFocus = null;
+			this.focus = null;
 		} else {
-			focus = Focus.check(focus);
-			if (focus.getMode() == IFocus.Mode.INPUT) {
-				this.inputFocus = focus;
-				this.outputFocus = null;
-			} else if (focus.getMode() == IFocus.Mode.OUTPUT) {
-				this.inputFocus = null;
-				this.outputFocus = focus;
-			}
+			this.focus = Focus.check(focus);
 		}
 		IngredientRegistry ingredientRegistry = Internal.getIngredientRegistry();
-		this.ingredientHelper = ingredientRegistry.getIngredientHelper(ingredientClass);
-		this.ingredientRenderer = ingredientRegistry.getIngredientRenderer(ingredientClass);
+		this.ingredientHelper = ingredientRegistry.getIngredientHelper(ingredientType);
+		this.ingredientRenderer = ingredientRegistry.getIngredientRenderer(ingredientType);
 		this.cycleOffset = cycleOffset;
 	}
 
@@ -83,8 +75,8 @@ public class GuiIngredientGroup<T> implements IGuiIngredientGroup<T> {
 
 	@Override
 	public void set(IIngredients ingredients) {
-		List<List<T>> inputs = ingredients.getInputs(ingredientClass);
-		List<List<T>> outputs = ingredients.getOutputs(ingredientClass);
+		List<List<T>> inputs = ingredients.getInputs(ingredientType);
+		List<List<T>> outputs = ingredients.getOutputs(ingredientType);
 		int inputIndex = 0;
 		int outputIndex = 0;
 
@@ -112,6 +104,7 @@ public class GuiIngredientGroup<T> implements IGuiIngredientGroup<T> {
 		// Sanitize API input
 		if (ingredients != null) {
 			for (T ingredient : ingredients) {
+				Class<? extends T> ingredientClass = ingredientType.getIngredientClass();
 				if (!ingredientClass.isInstance(ingredient) && ingredient != null) {
 					Log.get().error("Received wrong type of ingredient. Expected {}, got {}", ingredientClass, ingredient.getClass(), new IllegalArgumentException());
 					return;
@@ -119,10 +112,12 @@ public class GuiIngredientGroup<T> implements IGuiIngredientGroup<T> {
 			}
 		}
 		GuiIngredient<T> guiIngredient = guiIngredients.get(slotIndex);
-		if (guiIngredient.isInput()) {
-			guiIngredient.set(ingredients, inputFocus);
+
+		IFocus.Mode ingredientMode = guiIngredient.isInput() ? IFocus.Mode.INPUT : IFocus.Mode.OUTPUT;
+		if (focus == null || focus.getMode() == ingredientMode) {
+			guiIngredient.set(ingredients, focus);
 		} else {
-			guiIngredient.set(ingredients, outputFocus);
+			guiIngredient.set(ingredients, null);
 		}
 	}
 
@@ -170,15 +165,9 @@ public class GuiIngredientGroup<T> implements IGuiIngredientGroup<T> {
 	@Override
 	public void setOverrideDisplayFocus(@Nullable IFocus<T> focus) {
 		if (focus == null) {
-			this.inputFocus = null;
-			this.outputFocus = null;
+			this.focus = null;
 		} else {
-			focus = Focus.check(focus);
-			if (focus.getMode() == IFocus.Mode.INPUT) {
-				this.inputFocus = focus;
-			} else if (focus.getMode() == IFocus.Mode.OUTPUT) {
-				this.outputFocus = focus;
-			}
+			this.focus = Focus.check(focus);
 		}
 	}
 }

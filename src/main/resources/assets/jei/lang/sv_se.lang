@@ -6,7 +6,7 @@ jei.tooltip.delete.item=Klicka för att radera
 jei.tooltip.liquid.amount.with.capacity=%,d / %,d mB
 jei.tooltip.liquid.amount=%,d mB
 jei.tooltip.transfer=Placera föremål
-jei.tooltip.recipe.ore.dict=Fungerar med alla %s
+jei.tooltip.recipe.ore.dict=Fungerar med alla typer av "%s"
 jei.tooltip.item.colors=Färger: %s
 jei.tooltip.shapeless.recipe=Formlöst recept
 jei.tooltip.cheat.mode.button.enabled=Fuskläget är aktiverat
@@ -17,6 +17,10 @@ jei.tooltip.recipe.id=Recept-ID: %s
 jei.tooltip.not.enough.space=Det finns inte tillräckligt mycket utrymme för att visa JEI här.
 jei.tooltip.ingredient.list.disabled=JEI:s överlägg är inaktiverat.
 jei.tooltip.ingredient.list.disabled.how.to.fix=Tryck på %s för att aktivera det.
+jei.tooltip.bookmarks=JEI-bokmärken
+jei.tooltip.bookmarks.usage.nokey=Lägg till ett kortkommando för JEI-bokmärken i dina kontrollinställningar.
+jei.tooltip.bookmarks.usage.key=Lägg musen över en ingrediens och tryck på "%s" för att bokmärka den.
+jei.tooltip.bookmarks.not.enough.space=Det finns inte tillräckligt mycket utrymme för att visa bokmärken här.
 
 # Error Tooltips
 jei.tooltip.error.recipe.transfer.missing=Föremål saknas
@@ -35,11 +39,14 @@ jei.chat.error.no.cheat.permission.2=Behörighet ges till spelare som kan använ
 key.jei.toggleOverlay=Visa/dölj JEI
 key.jei.focusSearch=Markera sökfält
 key.jei.showRecipe=Visa recept
-key.jei.showUses=Visa användningar
+key.jei.showUses=Visa användningsområden
 key.jei.recipeBack=Visa tidigare visad receptsida
 key.jei.toggleCheatMode=Slå på/av fuskläge
+key.jei.toggleEditMode=Slå på/av redigeringsläge
 key.jei.previousPage=Visa föregående sida
 key.jei.nextPage=Visa nästa sida
+key.jei.bookmark=Lägg till/ta bort bokmärkt ingrediens
+key.jei.toggleBookmarkOverlay=Visa/dölj bokmärkta ingredienser
 
 # Config
 config.jei.default=Standard
@@ -51,13 +58,15 @@ config.jei.mode=Läge
 config.jei.mode.comment=Ändra läget som JEI fungerar i.
 config.jei.mode.cheatItemsEnabled=Fuskläge
 config.jei.mode.cheatItemsEnabled.comment=Ge föremål istället för att visa receptet.
-config.jei.mode.editEnabled=Dölj ingredienser
+config.jei.mode.editEnabled=Dölj ingrediensläge
 config.jei.mode.editEnabled.comment=Dölj och visa ingredienser genom att klicka på dem i listan.
 
 config.jei.interface=Gränssnitt
 config.jei.interface.comment=Alternativ för användargränssnittet.
 config.jei.interface.overlayEnabled=Visa ingredienslistan
 config.jei.interface.overlayEnabled.comment=Visar listan över ingredienser intill öppet gränssnitt.
+config.jei.interface.bookmarkOverlayEnabled=Visa bokmärken
+config.jei.interface.bookmarkOverlayEnabled.comment=Visa listan över bokmärken bredvid öppnade gränssnitt.
 
 config.jei.search=Sökalternativ
 config.jei.search.comment=Alternativ för sökfältet.
@@ -86,7 +95,7 @@ config.jei.advanced.centerSearchBarEnabled=Centrera sökfältet
 config.jei.advanced.centerSearchBarEnabled.comment=Placera JEIs sökfält längst ned i mitten på skärmen.
 config.jei.advanced.modNameFormat=Namnformat för moddar
 config.jei.advanced.modNameFormat.comment=Hur modnamnet bör formateras i inforutan för JEI:s gränssnitt. Lämna tomt för att inaktivera.
-config.jei.advanced.maxColumns=Maximal bredd
+config.jei.advanced.maxColumns=Maximal bredd för överlägg
 config.jei.advanced.maxColumns.comment=Maximal bredd för ingredienslistan.
 config.jei.advanced.maxRecipeGuiHeight=Maxbredd för receptgränssnittet
 config.jei.advanced.maxRecipeGuiHeight.comment=Maximal höjd för receptgränssnittet.

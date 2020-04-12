@@ -1,13 +1,19 @@
 package mezz.jei.ingredients;
 
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import net.minecraftforge.fml.common.ProgressManager;
+import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
+import net.minecraft.util.NonNullList;
 
 import com.google.common.collect.ImmutableList;
 import it.unimi.dsi.fastutil.chars.Char2ObjectMap;
@@ -15,27 +21,20 @@ import it.unimi.dsi.fastutil.chars.Char2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.ints.IntIterator;
 import it.unimi.dsi.fastutil.ints.IntOpenHashSet;
 import it.unimi.dsi.fastutil.ints.IntSet;
-import mezz.jei.Internal;
 import mezz.jei.api.IIngredientFilter;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.config.Config;
 import mezz.jei.config.EditModeToggleEvent;
 import mezz.jei.gui.ingredients.IIngredientListElement;
-import mezz.jei.gui.overlay.IngredientListOverlay;
-import mezz.jei.runtime.JeiRuntime;
+import mezz.jei.gui.overlay.IIngredientGridSource;
 import mezz.jei.startup.PlayerJoinedWorldEvent;
 import mezz.jei.suffixtree.CombinedSearchTrees;
 import mezz.jei.suffixtree.GeneralizedSuffixTree;
 import mezz.jei.suffixtree.ISearchTree;
 import mezz.jei.util.ErrorUtil;
 import mezz.jei.util.Translator;
-import net.minecraft.util.NonNullList;
-import net.minecraftforge.fml.common.ProgressManager;
-import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
-import javax.annotation.Nullable;
-
-public class IngredientFilter implements IIngredientFilter {
+public class IngredientFilter implements IIngredientFilter, IIngredientGridSource {
 	private static final Pattern QUOTE_PATTERN = Pattern.compile("\"");
 	private static final Pattern FILTER_SPLIT_PATTERN = Pattern.compile("(-?\".*?(?:\"|$)|\\S+)");
 
@@ -53,6 +52,7 @@ public class IngredientFilter implements IIngredientFilter {
 	@Nullable
 	private String filterCached;
 	private List<IIngredientListElement> ingredientListCached = Collections.emptyList();
+	private final List<IIngredientGridSource.Listener> listeners = new ArrayList<>();
 
 	public IngredientFilter(IngredientBlacklistInternal blacklist) {
 		this.blacklist = blacklist;
@@ -86,10 +86,27 @@ public class IngredientFilter implements IIngredientFilter {
 		this.prefixedSearchTrees.put(prefix, prefixedTree);
 	}
 
+	public void trimToSize() {
+		searchTree.trimToSize();
+		for (PrefixedSearchTree tree : prefixedSearchTrees.values()) {
+			tree.getTree().trimToSize();
+		}
+	}
+
 	public void addIngredients(NonNullList<IIngredientListElement> ingredients) {
-		ProgressManager.ProgressBar progressBar = ProgressManager.push("Indexing ingredients", ingredients.size());
+		ingredients.sort(IngredientListElementComparator.INSTANCE);
+		long modNameCount = ingredients.stream()
+			.map(IIngredientListElement::getModNameForSorting)
+			.distinct()
+			.count();
+		ProgressManager.ProgressBar progressBar = ProgressManager.push("Indexing ingredients", (int) modNameCount);
+		String currentModName = null;
 		for (IIngredientListElement<?> element : ingredients) {
-			progressBar.step(element.getDisplayName());
+			String modname = element.getModNameForSorting();
+			if (!Objects.equals(currentModName, modname)) {
+				currentModName = modname;
+				progressBar.step(modname);
+			}
 			addIngredient(element);
 		}
 		ProgressManager.pop(progressBar);
@@ -121,8 +138,7 @@ public class IngredientFilter implements IIngredientFilter {
 		final IIngredientHelper<V> ingredientHelper = element.getIngredientHelper();
 		final V ingredient = element.getIngredient();
 		final String ingredientUid = ingredientHelper.getUniqueId(ingredient);
-		@SuppressWarnings("unchecked")
-		final Class<? extends V> ingredientClass = (Class<? extends V>) ingredient.getClass();
+		@SuppressWarnings("unchecked") final Class<? extends V> ingredientClass = (Class<? extends V>) ingredient.getClass();
 
 		final List<IIngredientListElement<V>> matchingElements = new ArrayList<>();
 		final IntSet matchingIndexes = searchTree.search(Translator.toLowercaseWithLocale(element.getDisplayName()));
@@ -173,13 +189,14 @@ public class IngredientFilter implements IIngredientFilter {
 		IIngredientHelper<V> ingredientHelper = element.getIngredientHelper();
 		boolean visible = !blacklist.isIngredientBlacklistedByApi(ingredient, ingredientHelper) &&
 			ingredientHelper.isIngredientOnServer(ingredient) &&
-			(Config.isHideModeEnabled() || !Config.isIngredientOnConfigBlacklist(ingredient, ingredientHelper));
+			(Config.isEditModeEnabled() || !Config.isIngredientOnConfigBlacklist(ingredient, ingredientHelper));
 		if (element.isVisible() != visible) {
 			element.setVisible(visible);
 			this.filterCached = null;
 		}
 	}
 
+	@Override
 	public List<IIngredientListElement> getIngredientList() {
 		String filterText = Translator.toLowercaseWithLocale(Config.getFilterText());
 		if (!filterText.equals(filterCached)) {
@@ -211,11 +228,7 @@ public class IngredientFilter implements IIngredientFilter {
 	public void setFilterText(String filterText) {
 		ErrorUtil.checkNotNull(filterText, "filterText");
 		if (Config.setFilterText(filterText)) {
-			JeiRuntime runtime = Internal.getRuntime();
-			if (runtime != null) {
-				IngredientListOverlay ingredientListOverlay = runtime.getIngredientListOverlay();
-				ingredientListOverlay.onSetFilterText(filterText);
-			}
+			notifyListenersOfChange();
 		}
 	}
 
@@ -278,7 +291,7 @@ public class IngredientFilter implements IIngredientFilter {
 				String elementWildcardId = uidFunction.apply(element);
 				if (uid.equals(elementWildcardId)) {
 					matchingIndexes.add(i);
-					@SuppressWarnings("unchecked")
+					@SuppressWarnings({"unchecked", "CastCanBeRemovedNarrowingVariableType"})
 					IIngredientListElement<T> castElement = (IIngredientListElement<T>) element;
 					matchingElements.add(castElement);
 				} else {
@@ -290,7 +303,7 @@ public class IngredientFilter implements IIngredientFilter {
 				String elementWildcardId = uidFunction.apply(element);
 				if (uid.equals(elementWildcardId)) {
 					matchingIndexes.add(i);
-					@SuppressWarnings("unchecked")
+					@SuppressWarnings({"unchecked", "CastCanBeRemovedNarrowingVariableType"})
 					IIngredientListElement<T> castElement = (IIngredientListElement<T>) element;
 					matchingElements.add(castElement);
 				} else {
@@ -379,7 +392,19 @@ public class IngredientFilter implements IIngredientFilter {
 		}
 	}
 
+	@Override
 	public int size() {
 		return getIngredientList().size();
+	}
+
+	@Override
+	public void addListener(IIngredientGridSource.Listener listener) {
+		listeners.add(listener);
+	}
+
+	private void notifyListenersOfChange() {
+		for (IIngredientGridSource.Listener listener : listeners) {
+			listener.onChange();
+		}
 	}
 }

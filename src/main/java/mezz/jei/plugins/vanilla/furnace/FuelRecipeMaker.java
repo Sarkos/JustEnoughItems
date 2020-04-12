@@ -1,8 +1,11 @@
 package mezz.jei.plugins.vanilla.furnace;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+
+import net.minecraftforge.oredict.OreDictionary;
+import net.minecraft.item.ItemStack;
+import net.minecraft.tileentity.TileEntityFurnace;
 
 import it.unimi.dsi.fastutil.ints.Int2BooleanArrayMap;
 import it.unimi.dsi.fastutil.ints.Int2BooleanMap;
@@ -10,9 +13,6 @@ import mezz.jei.api.IGuiHelper;
 import mezz.jei.api.IJeiHelpers;
 import mezz.jei.api.ingredients.IIngredientRegistry;
 import mezz.jei.api.recipe.IStackHelper;
-import net.minecraft.item.ItemStack;
-import net.minecraft.tileentity.TileEntityFurnace;
-import net.minecraftforge.oredict.OreDictionary;
 
 public final class FuelRecipeMaker {
 
@@ -27,10 +27,15 @@ public final class FuelRecipeMaker {
 		List<FuelRecipe> fuelRecipes = new ArrayList<>(fuelStacks.size());
 		for (ItemStack fuelStack : fuelStacks) {
 			int burnTime = TileEntityFurnace.getItemBurnTime(fuelStack);
-			List<ItemStack> fuels = stackHelper.getSubtypes(fuelStack);
-			fuels.removeIf(itemStack -> TileEntityFurnace.getItemBurnTime(itemStack) != burnTime);
+			List<ItemStack> subtypes = stackHelper.getSubtypes(fuelStack);
+			List<ItemStack> fuels = new ArrayList<>();
+			for (ItemStack subtype : subtypes) {
+				if (TileEntityFurnace.getItemBurnTime(subtype) == burnTime) {
+					fuels.add(subtype);
+				}
+			}
 			if (fuels.isEmpty()) {
-				fuels = Collections.singletonList(fuelStack);
+				fuels.add(fuelStack);
 			}
 			if (fuels.size() <= 1) {
 				int[] oreIDs = OreDictionary.getOreIDs(fuelStack);

@@ -10,12 +10,22 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 
+import net.minecraftforge.fml.client.FMLClientHandler;
+import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.common.config.ConfigCategory;
+import net.minecraftforge.common.config.Configuration;
+import net.minecraftforge.common.config.Property;
+import net.minecraft.network.NetworkManager;
+import net.minecraft.util.text.TextFormatting;
+
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import mezz.jei.Internal;
 import mezz.jei.JustEnoughItems;
 import mezz.jei.api.ingredients.IIngredientHelper;
 import mezz.jei.api.ingredients.IIngredientRegistry;
+import mezz.jei.api.recipe.IIngredientType;
 import mezz.jei.color.ColorGetter;
 import mezz.jei.color.ColorNamer;
 import mezz.jei.gui.ingredients.IIngredientListElement;
@@ -27,14 +37,6 @@ import mezz.jei.startup.IModIdHelper;
 import mezz.jei.util.GiveMode;
 import mezz.jei.util.Log;
 import mezz.jei.util.Translator;
-import net.minecraft.network.NetworkManager;
-import net.minecraft.util.text.TextFormatting;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.common.config.ConfigCategory;
-import net.minecraftforge.common.config.Configuration;
-import net.minecraftforge.common.config.Property;
-import net.minecraftforge.fml.client.FMLClientHandler;
-import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 
 public final class Config {
 	private static final String configKeyPrefix = "config.jei";
@@ -57,6 +59,8 @@ public final class Config {
 	private static LocalizedConfiguration itemBlacklistConfig;
 	@Nullable
 	private static LocalizedConfiguration searchColorsConfig;
+	@Nullable
+	private static File bookmarkFile;
 
 	private static final ConfigValues defaultValues = new ConfigValues();
 	private static final ConfigValues values = new ConfigValues();
@@ -93,6 +97,27 @@ public final class Config {
 		MinecraftForge.EVENT_BUS.post(new OverlayToggleEvent(values.overlayEnabled));
 	}
 
+	public static boolean isBookmarkOverlayEnabled() {
+		return isOverlayEnabled() && values.bookmarkOverlayEnabled;
+	}
+
+	public static void toggleBookmarkEnabled() {
+		values.bookmarkOverlayEnabled = !values.bookmarkOverlayEnabled;
+
+		if (worldConfig != null) {
+			NetworkManager networkManager = FMLClientHandler.instance().getClientToServerNetworkManager();
+			final String worldCategory = ServerInfo.getWorldUid(networkManager);
+			Property property = worldConfig.get(worldCategory, "bookmarkOverlayEnabled", defaultValues.bookmarkOverlayEnabled);
+			property.set(values.bookmarkOverlayEnabled);
+
+			if (worldConfig.hasChanged()) {
+				worldConfig.save();
+			}
+		}
+
+		MinecraftForge.EVENT_BUS.post(new BookmarkOverlayToggleEvent(values.bookmarkOverlayEnabled));
+	}
+
 	public static boolean isCheatItemsEnabled() {
 		return values.cheatItemsEnabled;
 	}
@@ -122,24 +147,24 @@ public final class Config {
 		}
 	}
 
-	public static boolean isHideModeEnabled() {
-		return values.hideModeEnabled;
+	public static boolean isEditModeEnabled() {
+		return values.editModeEnabled;
 	}
 
-	public static void toggleHideModeEnabled() {
-		values.hideModeEnabled = !values.hideModeEnabled;
+	public static void toggleEditModeEnabled() {
+		values.editModeEnabled = !values.editModeEnabled;
 		if (worldConfig != null) {
 			NetworkManager networkManager = FMLClientHandler.instance().getClientToServerNetworkManager();
 			final String worldCategory = ServerInfo.getWorldUid(networkManager);
-			Property property = worldConfig.get(worldCategory, "editEnabled", defaultValues.hideModeEnabled);
-			property.set(values.hideModeEnabled);
+			Property property = worldConfig.get(worldCategory, "editEnabled", defaultValues.editModeEnabled);
+			property.set(values.editModeEnabled);
 
 			if (worldConfig.hasChanged()) {
 				worldConfig.save();
 			}
 		}
 
-		MinecraftForge.EVENT_BUS.post(new EditModeToggleEvent(values.hideModeEnabled));
+		MinecraftForge.EVENT_BUS.post(new EditModeToggleEvent(values.editModeEnabled));
 	}
 
 	public static boolean isDebugModeEnabled() {
@@ -152,6 +177,10 @@ public final class Config {
 
 	public static boolean isCenterSearchBarEnabled() {
 		return values.centerSearchBarEnabled;
+	}
+
+	public static boolean isOptimizeMemoryUsage() {
+		return values.optimizeMemoryUsage;
 	}
 
 	public static GiveMode getGiveMode() {
@@ -254,6 +283,11 @@ public final class Config {
 		return worldConfig;
 	}
 
+	@Nullable
+	public static File getBookmarkFile() {
+		return bookmarkFile;
+	}
+
 	public static void preInit(FMLPreInitializationEvent event) {
 
 		File jeiConfigurationDir = new File(event.getModConfigurationDirectory(), Constants.MOD_ID);
@@ -273,6 +307,7 @@ public final class Config {
 		final File itemBlacklistConfigFile = new File(jeiConfigurationDir, "itemBlacklist.cfg");
 		final File searchColorsConfigFile = new File(jeiConfigurationDir, "searchColors.cfg");
 		final File worldConfigFile = new File(jeiConfigurationDir, "worldSettings.cfg");
+		bookmarkFile = new File(jeiConfigurationDir, "bookmarks.ini");
 		worldConfig = new Configuration(worldConfigFile, "0.1.0");
 		config = new LocalizedConfiguration(configKeyPrefix, configFile, "0.4.0");
 		itemBlacklistConfig = new LocalizedConfiguration(configKeyPrefix, itemBlacklistConfigFile, "0.1.0");
@@ -368,6 +403,8 @@ public final class Config {
 
 		values.centerSearchBarEnabled = config.getBoolean(CATEGORY_ADVANCED, "centerSearchBarEnabled", defaultValues.centerSearchBarEnabled);
 
+		values.optimizeMemoryUsage = config.getBoolean(CATEGORY_ADVANCED, "optimizeMemoryUsage", defaultValues.optimizeMemoryUsage);
+
 		values.giveMode = config.getEnum("giveMode", CATEGORY_ADVANCED, defaultValues.giveMode, GiveMode.values());
 
 		values.maxColumns = config.getInt("maxColumns", CATEGORY_ADVANCED, defaultValues.maxColumns, smallestNumColumns, largestNumColumns);
@@ -457,13 +494,19 @@ public final class Config {
 		property.setComment(Translator.translateToLocal("config.jei.mode.cheatItemsEnabled.comment"));
 		values.cheatItemsEnabled = property.getBoolean();
 
-		property = worldConfig.get(worldCategory, "editEnabled", defaultValues.hideModeEnabled);
+		property = worldConfig.get(worldCategory, "editEnabled", defaultValues.editModeEnabled);
 		property.setLanguageKey("config.jei.mode.editEnabled");
 		property.setComment(Translator.translateToLocal("config.jei.mode.editEnabled.comment"));
-		values.hideModeEnabled = property.getBoolean();
+		values.editModeEnabled = property.getBoolean();
 		if (property.hasChanged()) {
-			MinecraftForge.EVENT_BUS.post(new EditModeToggleEvent(values.hideModeEnabled));
+			MinecraftForge.EVENT_BUS.post(new EditModeToggleEvent(values.editModeEnabled));
 		}
+
+		property = worldConfig.get(worldCategory, "bookmarkOverlayEnabled", defaultValues.bookmarkOverlayEnabled);
+		property.setLanguageKey("config.jei.interface.bookmarkOverlayEnabled");
+		property.setComment(Translator.translateToLocal("config.jei.interface.bookmarkOverlayEnabled.comment"));
+		property.setShowInGui(false);
+		values.bookmarkOverlayEnabled = property.getBoolean();
 
 		property = worldConfig.get(worldCategory, "filterText", defaultValues.filterText);
 		property.setShowInGui(false);
@@ -527,9 +570,8 @@ public final class Config {
 	}
 
 	public static <V> void addIngredientToConfigBlacklist(IngredientFilter ingredientFilter, IIngredientRegistry ingredientRegistry, V ingredient, IngredientBlacklistType blacklistType, IIngredientHelper<V> ingredientHelper) {
-		@SuppressWarnings("unchecked")
-		Class<? extends V> ingredientClass = (Class<? extends V>) ingredient.getClass();
-		IIngredientListElement<V> element = IngredientListElementFactory.createElement(ingredientRegistry, ingredientClass, ingredient, ForgeModIdHelper.getInstance());
+		IIngredientType<V> ingredientType = ingredientRegistry.getIngredientType(ingredient);
+		IIngredientListElement<V> element = IngredientListElementFactory.createUnorderedElement(ingredientRegistry, ingredientType, ingredient, ForgeModIdHelper.getInstance());
 		Preconditions.checkNotNull(element, "Failed to create element for blacklist");
 
 		// combine item-level blacklist into wildcard-level ones
@@ -576,9 +618,8 @@ public final class Config {
 	}
 
 	public static <V> void removeIngredientFromConfigBlacklist(IngredientFilter ingredientFilter, IIngredientRegistry ingredientRegistry, V ingredient, IngredientBlacklistType blacklistType, IIngredientHelper<V> ingredientHelper) {
-		@SuppressWarnings("unchecked")
-		Class<? extends V> ingredientClass = (Class<? extends V>) ingredient.getClass();
-		IIngredientListElement<V> element = IngredientListElementFactory.createElement(ingredientRegistry, ingredientClass, ingredient, ForgeModIdHelper.getInstance());
+		IIngredientType<V> ingredientType = ingredientRegistry.getIngredientType(ingredient);
+		IIngredientListElement<V> element = IngredientListElementFactory.createUnorderedElement(ingredientRegistry, ingredientType, ingredient, ForgeModIdHelper.getInstance());
 		Preconditions.checkNotNull(element, "Failed to create element for blacklist");
 
 		boolean updated = false;
@@ -671,8 +712,8 @@ public final class Config {
 	 * @param str1 a string of ordinal numbers separated by decimal points.
 	 * @param str2 a string of ordinal numbers separated by decimal points.
 	 * @return The result is a negative integer if str1 is _numerically_ less than str2.
-	 *         The result is a positive integer if str1 is _numerically_ greater than str2.
-	 *         The result is zero if the strings are _numerically_ equal.
+	 * The result is a positive integer if str1 is _numerically_ greater than str2.
+	 * The result is zero if the strings are _numerically_ equal.
 	 */
 	private static int versionCompare(String str1, String str2) {
 		String[] vals1 = str1.split("\\.");

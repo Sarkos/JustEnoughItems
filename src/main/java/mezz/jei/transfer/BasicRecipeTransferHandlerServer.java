@@ -2,7 +2,11 @@ package mezz.jei.transfer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.inventory.Container;
@@ -42,13 +46,22 @@ public final class BasicRecipeTransferHandlerServer {
 			return;
 		}
 
+		int minSlotStackLimit = Integer.MAX_VALUE;
 		// clear the crafting grid
 		List<ItemStack> clearedCraftingItems = new ArrayList<>();
-		for (Integer craftingSlotNumber : craftingSlots) {
+		for (int craftingSlotNumberIndex = 0; craftingSlotNumberIndex < craftingSlots.size(); craftingSlotNumberIndex++) {
+			int craftingSlotNumber = craftingSlots.get(craftingSlotNumberIndex);
 			Slot craftingSlot = container.getSlot(craftingSlotNumber);
 			if (craftingSlot.getHasStack()) {
 				ItemStack craftingItem = craftingSlot.decrStackSize(Integer.MAX_VALUE);
 				clearedCraftingItems.add(craftingItem);
+			}
+			if (requireCompleteSets) {
+				ItemStack transferItem = toTransfer.get(craftingSlotNumberIndex);
+				if (transferItem != null) {
+					int slotStackLimit = craftingSlot.getItemStackLimit(transferItem);
+					minSlotStackLimit = Math.min(slotStackLimit, minSlotStackLimit);
+				}
 			}
 		}
 
@@ -59,8 +72,11 @@ public final class BasicRecipeTransferHandlerServer {
 			Slot slot = container.getSlot(slotNumber);
 
 			ItemStack stack = entry.getValue();
-			stack.setCount(stack.getCount());
 			if (slot.isItemValid(stack)) {
+				if (stack.getCount() > minSlotStackLimit) {
+					ItemStack remainder = stack.splitStack(stack.getCount() - minSlotStackLimit);
+					clearedCraftingItems.add(remainder);
+				}
 				slot.putStack(stack);
 			} else {
 				clearedCraftingItems.add(stack);
@@ -82,12 +98,12 @@ public final class BasicRecipeTransferHandlerServer {
 
 	@Nonnull
 	private static Map<Integer, ItemStack> removeItemsFromInventory(
-			Container container,
-			Map<Integer, ItemStack> required,
-			List<Integer> craftingSlots,
-			List<Integer> inventorySlots,
-			boolean transferAsCompleteSets,
-			boolean maxTransfer
+		Container container,
+		Map<Integer, ItemStack> required,
+		List<Integer> craftingSlots,
+		List<Integer> inventorySlots,
+		boolean transferAsCompleteSets,
+		boolean maxTransfer
 	) {
 
 		// This map becomes populated with the resulting items to transfer and is returned by this method.
@@ -195,9 +211,9 @@ public final class BasicRecipeTransferHandlerServer {
 				final ItemStack inventoryStack = slot.getStack();
 				// Check that the slot's contents are stackable with this stack
 				if (!inventoryStack.isEmpty() &&
-						inventoryStack.isStackable() &&
-						inventoryStack.isItemEqual(stack) &&
-						ItemStack.areItemStackTagsEqual(inventoryStack, stack)) {
+					inventoryStack.isStackable() &&
+					inventoryStack.isItemEqual(stack) &&
+					ItemStack.areItemStackTagsEqual(inventoryStack, stack)) {
 
 					final int remain = stack.getCount() - added;
 					final int maxStackSize = Math.min(slot.getItemStackLimit(inventoryStack), inventoryStack.getMaxStackSize());

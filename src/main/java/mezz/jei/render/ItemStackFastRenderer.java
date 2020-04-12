@@ -1,7 +1,8 @@
 package mezz.jei.render;
 
-import mezz.jei.config.Config;
-import mezz.jei.gui.ingredients.IIngredientListElement;
+import java.awt.Rectangle;
+
+import net.minecraftforge.client.ForgeHooksClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.renderer.GlStateManager;
@@ -14,9 +15,10 @@ import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ResourceLocation;
-import net.minecraftforge.client.ForgeHooksClient;
 
-import java.awt.Rectangle;
+import mezz.jei.config.Config;
+import mezz.jei.gui.ingredients.IIngredientListElement;
+import mezz.jei.util.ErrorUtil;
 
 public class ItemStackFastRenderer extends IngredientRenderer<ItemStack> {
 	private static final ResourceLocation RES_ITEM_GLINT = new ResourceLocation("textures/misc/enchanted_item_glint.png");
@@ -29,7 +31,7 @@ public class ItemStackFastRenderer extends IngredientRenderer<ItemStack> {
 		try {
 			uncheckedRenderItemAndEffectIntoGUI();
 		} catch (RuntimeException | LinkageError e) {
-			throw createRenderIngredientException(e, element);
+			throw ErrorUtil.createRenderIngredientException(e, element.getIngredient());
 		}
 	}
 
@@ -41,7 +43,7 @@ public class ItemStackFastRenderer extends IngredientRenderer<ItemStack> {
 	}
 
 	private void uncheckedRenderItemAndEffectIntoGUI() {
-		if (Config.isHideModeEnabled()) {
+		if (Config.isEditModeEnabled()) {
 			renderEditMode(element, area, padding);
 			GlStateManager.enableBlend();
 		}
@@ -106,7 +108,7 @@ public class ItemStackFastRenderer extends IngredientRenderer<ItemStack> {
 		try {
 			renderOverlay(itemStack, area, padding);
 		} catch (RuntimeException | LinkageError e) {
-			throw createRenderIngredientException(e, element);
+			throw ErrorUtil.createRenderIngredientException(e, element.getIngredient());
 		}
 	}
 
